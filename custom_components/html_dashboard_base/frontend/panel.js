@@ -20,8 +20,9 @@ class DashboardBasePanel extends HTMLElement {
     super();
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = `<style>
-      :host{display:block;height:100%;background:var(--primary-background-color)}
-      iframe{display:block;width:100%;height:100%;border:0}
+      :host{display:block;position:relative;height:100vh;height:100dvh;
+        background:var(--primary-background-color)}
+      iframe{position:absolute;inset:0;display:block;width:100%;height:100%;border:0}
       #msg{padding:24px;font-family:sans-serif;color:var(--primary-text-color)}
       #menu{position:fixed;top:8px;left:8px;z-index:2;width:40px;height:40px;
         border-radius:50%;border:0;opacity:.6}
