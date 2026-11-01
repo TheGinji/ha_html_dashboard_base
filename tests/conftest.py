@@ -50,15 +50,18 @@ def skip_dependencies(hass: HomeAssistant) -> None:
 
 @pytest.fixture
 def panel_mocks() -> Generator[tuple[AsyncMock, MagicMock]]:
-    """Vervang het registreren en weghalen van het paneel door mocks."""
+    """Vervang het registreren en weghalen van het paneel door mocks.
+
+    Er wordt bewust op de modules van Home Assistant zelf gepatcht. Het pad
+    custom_components.html_dashboard_base.frontend wijst namelijk naar de map
+    met het paneelbestand, niet naar de Home Assistant-module.
+    """
     with (
         patch(
-            "custom_components.html_dashboard_base.panel_custom.async_register_panel",
+            "homeassistant.components.panel_custom.async_register_panel",
             new_callable=AsyncMock,
         ) as register,
-        patch(
-            "custom_components.html_dashboard_base.frontend.async_remove_panel"
-        ) as remove,
+        patch("homeassistant.components.frontend.async_remove_panel") as remove,
     ):
         yield register, remove
 
