@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Choose a name for the sidebar item and the entities your dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a placeholder page is shown.",
+        "description": "Choose a name for the sidebar item and the entities your dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a short message saying nothing has been uploaded yet is shown.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",

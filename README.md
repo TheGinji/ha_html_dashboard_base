@@ -45,7 +45,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 1. Ga naar Instellingen, Apparaten en diensten, Integratie toevoegen en kies Dashboard Base.
 2. Kies een naam voor de zijbalk en de entiteiten die het dashboard mag zien en bedienen.
-3. Upload je HTML-bestand. Dat kan ook later, via Configureren. Zonder bestand zie je een voorbeeldpagina met uitleg.
+3. Upload je HTML-bestand. Dat kan ook later, via Configureren. Zonder bestand zie je een korte melding dat er nog niets is geüpload.
 
 Een algemeen sjabloon met demo-modus staat in [`templates/starter.html`](templates/starter.html). Download het en upload het als eerste dashboard. Open je het los in een browser, dan draait het met verzonnen gegevens.
 

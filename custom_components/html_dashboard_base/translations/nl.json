@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Kies een naam voor het menu-item in de zijbalk en de entiteiten die je dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een voorbeeldpagina.",
+        "description": "Kies een naam voor het menu-item in de zijbalk en de entiteiten die je dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een korte melding dat er nog niets is geüpload.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
