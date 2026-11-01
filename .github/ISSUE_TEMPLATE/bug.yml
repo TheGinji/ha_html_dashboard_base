@@ -1,0 +1,43 @@
+name: Fout melden
+description: Iets werkt niet zoals het hoort
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bedankt voor het melden. Vul geen persoonlijke gegevens in, zoals adressen, namen of e-mailadressen, en plak geen dashboardbestand met privegegevens.
+  - type: checkboxes
+    id: starter
+    attributes:
+      label: Eerst proberen
+      description: Het sjabloon helpt bepalen of het aan je eigen bestand ligt of aan Dashboard Base.
+      options:
+        - label: Ik heb templates/starter.html geprobeerd en het gebeurt daar ook
+  - type: input
+    id: ha_version
+    attributes:
+      label: Versie van Home Assistant
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versie van Dashboard Base
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Wat gebeurt er?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Wat had je verwacht?
+  - type: textarea
+    id: log
+    attributes:
+      label: Logboek
+      description: Alleen de regels met html_dashboard_base, zonder persoonlijke gegevens.
+      render: text

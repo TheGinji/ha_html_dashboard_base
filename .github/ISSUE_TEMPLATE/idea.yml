@@ -1,0 +1,14 @@
+name: Idee voorstellen
+description: Iets wat Dashboard Base zou moeten kunnen
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Wat wil je kunnen?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Waarom? Wat probeer je te maken?
