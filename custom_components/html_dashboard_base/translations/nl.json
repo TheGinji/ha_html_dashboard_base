@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Dashboard Base",
+        "description": "Kies een naam voor het menu-item in de zijbalk en de entiteiten die je dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een voorbeeldpagina.",
+        "data": {
+          "title": "Naam in de zijbalk",
+          "entities": "Toegestane entiteiten",
+          "html": "HTML-dashboard"
+        },
+        "data_description": {
+          "entities": "Alleen deze entiteiten zijn zichtbaar voor het dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
+          "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen)."
+        }
+      }
+    },
+    "error": {
+      "html_too_large": "Het bestand is groter dan 2 MB.",
+      "html_invalid": "Het bestand is geen geldig UTF-8-bestand met HTML."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard Base",
+        "description": "Wijzig de naam of de toegestane entiteiten. Upload een nieuw HTML-bestand om het huidige dashboard te vervangen, of laat het leeg om het huidige te houden.",
+        "data": {
+          "title": "Naam in de zijbalk",
+          "entities": "Toegestane entiteiten",
+          "html": "HTML-dashboard"
+        },
+        "data_description": {
+          "entities": "Alleen deze entiteiten zijn zichtbaar voor het dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
+          "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen)."
+        }
+      }
+    },
+    "error": {
+      "html_too_large": "Het bestand is groter dan 2 MB.",
+      "html_invalid": "Het bestand is geen geldig UTF-8-bestand met HTML."
+    }
+  }
+}

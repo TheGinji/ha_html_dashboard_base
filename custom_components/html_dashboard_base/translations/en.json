@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Dashboard Base",
+        "description": "Choose a name for the sidebar item and the entities your dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a placeholder page is shown.",
+        "data": {
+          "title": "Name in the sidebar",
+          "entities": "Allowed entities",
+          "html": "HTML dashboard"
+        },
+        "data_description": {
+          "entities": "Only these entities are visible to the dashboard. Scenes and scripts you add may do more than this list.",
+          "html": "One self-contained .html file (up to 2 MB, no external resources)."
+        }
+      }
+    },
+    "error": {
+      "html_too_large": "The file is larger than 2 MB.",
+      "html_invalid": "The file is not a valid UTF-8 file with HTML."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard Base",
+        "description": "Change the name or the allowed entities. Upload a new HTML file to replace the current dashboard, or leave it empty to keep the current one.",
+        "data": {
+          "title": "Name in the sidebar",
+          "entities": "Allowed entities",
+          "html": "HTML dashboard"
+        },
+        "data_description": {
+          "entities": "Only these entities are visible to the dashboard. Scenes and scripts you add may do more than this list.",
+          "html": "One self-contained .html file (up to 2 MB, no external resources)."
+        }
+      }
+    },
+    "error": {
+      "html_too_large": "The file is larger than 2 MB.",
+      "html_invalid": "The file is not a valid UTF-8 file with HTML."
+    }
+  }
+}

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Base starter</title>
+<!--
+  Starter voor Dashboard Base. Eén los bestand: geen externe lettertypen,
+  scripts of afbeeldingen, want het paneel blokkeert alle verbindingen naar buiten.
+
+  Koppeling (alleen toegestane entiteiten):
+    DashboardBase.registry()                    -> lijst met naam, gebied en type
+    DashboardBase.states()                      -> huidige standen
+    DashboardBase.subscribe(cb)                 -> cb({entity_id, state}) bij elke wijziging
+    DashboardBase.call(domain, service, data)   -> service aanroepen, data bevat entity_id
+
+  Open je dit bestand los in een browser, dan draait de demo-modus met
+  verzonnen gegevens. Binnen het paneel gebruikt het je echte entiteiten.
+-->
+<style>
+:root{--bg:#f4f4f1;--card:#fff;--text:#1d201c;--muted:#6c716a;--accent:#4f7f52;--on:#e3eedd;--line:#e1e1da;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#141613;--card:#1e211d;--text:#ecece6;--muted:#9a9e95;--accent:#8fbf7f;--on:#27351f;--line:#2f332d;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px 16px 40px;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{margin:0;font-size:1.3rem}
+h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#sub{color:var(--muted);font-size:.9rem;text-transform:capitalize}
+#demo{display:none;margin:12px 0 0;padding:8px 12px;border-radius:10px;background:var(--on);font-size:.9rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;min-height:76px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card);cursor:pointer}
+.tile:focus-visible{outline:2px solid var(--accent)}
+.tile.ro{cursor:default}
+.tile.on{background:var(--on);border-color:var(--accent)}
+.tile.off .v{color:var(--muted)}
+.tile.bad{opacity:.5}
+.n{font-size:.9rem}
+.v{font-size:1.1rem;font-weight:600}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);padding:8px 14px;border-radius:10px;background:var(--text);color:var(--bg);font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
+</style>
+</head>
+<body>
+<h1>Dashboard</h1>
+<div id="sub"></div>
+<div id="demo">Demo-modus: voorbeeldgegevens, er wordt niets bediend.</div>
+<div id="root"></div>
+<div id="toast"></div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const ACTION = {
+    light: "toggle", switch: "toggle", input_boolean: "toggle", fan: "toggle",
+    cover: "toggle", media_player: "toggle", scene: "turn_on", script: "turn_on",
+    button: "press", input_button: "press",
+  };
+  const RUN = new Set(["scene", "button", "input_button"]);
+  const ON = new Set(["on", "open", "playing", "heat", "cool", "heat_cool", "cleaning"]);
+  const NL = {
+    on: "aan", off: "uit", open: "open", closed: "dicht", playing: "speelt",
+    paused: "pauze", idle: "stil", unavailable: "niet beschikbaar",
+  };
+  const reg = new Map(), st = new Map(), tiles = new Map();
+  const demo = !window.DashboardBase;
+  const api = window.DashboardBase || makeDemo();
+  let toastTimer;
+
+  function toast(msg) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.style.opacity = 1;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.style.opacity = 0), 3000);
+  }
+
+  function text(s) {
+    const a = s.attributes || {}, d = s.entity_id.split(".")[0];
+    if (RUN.has(d)) return "Uitvoeren";
+    if (d === "climate" && a.current_temperature != null) return a.current_temperature + "°";
+    if (d === "sensor") return s.state + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
+    return NL[s.state] || s.state;
+  }
+
+  function paint(id) {
+    const el = tiles.get(id);
+    if (!el) return;
+    const s = st.get(id), r = reg.get(id);
+    el.querySelector(".n").textContent = (r && r.name) || id;
+    el.querySelector(".v").textContent = s ? text(s) : "onbekend";
+    el.classList.toggle("on", !!s && ON.has(s.state));
+    el.classList.toggle("off", !!s && !ON.has(s.state));
+    el.classList.toggle("bad", !s || s.state === "unavailable");
+  }
+
+  async function run(domain, service, id) {
+    try {
+      await api.call(domain, service, { entity_id: id });
+    } catch (e) {
+      toast((e && e.message) || "Mislukt");
+    }
+  }
+
+  function build(id) {
+    const domain = id.split(".")[0], action = ACTION[domain];
+    const el = document.createElement(action ? "button" : "div");
+    el.className = action ? "tile" : "tile ro";
+    el.innerHTML = '<span class="n"></span><span class="v"></span>';
+    if (action) el.addEventListener("click", () => run(domain, action, id));
+    tiles.set(id, el);
+    paint(id);
+    return el;
+  }
+
+  function render() {
+    const root = $("#root");
+    root.textContent = "";
+    if (!reg.size) {
+      root.textContent =
+        "Geen entiteiten toegestaan. Kies ze via Instellingen, Apparaten en diensten, Dashboard Base, Configureren.";
+      return;
+    }
+    const groups = new Map();
+    for (const r of reg.values()) {
+      const area = r.area || "Overig";
+      if (!groups.has(area)) groups.set(area, []);
+      groups.get(area).push(r.entity_id);
+    }
+    for (const [area, ids] of groups) {
+      const h = document.createElement("h2");
+      h.textContent = area;
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      ids.forEach((id) => grid.append(build(id)));
+      root.append(h, grid);
+    }
+  }
+
+  function clock() {
+    const f = () => {
+      $("#sub").textContent = new Date().toLocaleString("nl-NL", {
+        weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
+      });
+    };
+    f();
+    setInterval(f, 30000);
+  }
+
+  function makeDemo() {
+    const subs = new Set();
+    const S = {
+      "light.woonkamer": { state: "on", attributes: {} },
+      "light.keuken": { state: "off", attributes: {} },
+      "cover.rolluik": { state: "open", attributes: {} },
+      "climate.thermostaat": { state: "heat", attributes: { current_temperature: 20.5 } },
+      "switch.tuinverlichting": { state: "off", attributes: {} },
+      "sensor.buitentemperatuur": { state: "12.3", attributes: { unit_of_measurement: "°C" } },
+      "scene.avond": { state: "unknown", attributes: {} },
+    };
+    const R = [
+      ["light.woonkamer", "Woonkamer", "Beneden"],
+      ["light.keuken", "Keuken", "Beneden"],
+      ["cover.rolluik", "Rolluik", "Beneden"],
+      ["climate.thermostaat", "Thermostaat", "Beneden"],
+      ["switch.tuinverlichting", "Tuinverlichting", "Buiten"],
+      ["sensor.buitentemperatuur", "Buiten", "Buiten"],
+      ["scene.avond", "Avondstand", null],
+    ].map(([entity_id, name, area]) => ({ entity_id, name, area, domain: entity_id.split(".")[0] }));
+    const snap = (id) => ({ entity_id: id, ...S[id] });
+    return {
+      registry: async () => R,
+      states: async () => Object.keys(S).map(snap),
+      subscribe: (cb) => (subs.add(cb), () => subs.delete(cb)),
+      call: async (domain, service, data) => {
+        const id = data && data.entity_id, s = S[id];
+        if (!s) throw new Error("Onbekende entiteit");
+        if (service === "toggle") {
+          const [a, b] = domain === "cover" ? ["open", "closed"] : ["on", "off"];
+          s.state = s.state === a ? b : a;
+          subs.forEach((cb) => cb({ entity_id: id, state: snap(id) }));
+        } else {
+          toast("Uitgevoerd (demo)");
+        }
+      },
+    };
+  }
+
+  async function init() {
+    $("#demo").style.display = demo ? "block" : "none";
+    clock();
+    try {
+      const [r, s] = await Promise.all([api.registry(), api.states()]);
+      r.forEach((e) => reg.set(e.entity_id, e));
+      s.forEach((x) => st.set(x.entity_id, x));
+      api.subscribe((ev) => {
+        if (ev.state) st.set(ev.entity_id, ev.state);
+        else st.delete(ev.entity_id);
+        paint(ev.entity_id);
+      });
+      render();
+    } catch (e) {
+      $("#root").textContent = "Kan de gegevens niet laden: " + ((e && e.message) || e);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
