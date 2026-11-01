@@ -1,12 +1,14 @@
 # Dashboard Base
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
+[![Tests](https://github.com/TheGinji/ha_html_dashboard_base/actions/workflows/tests.yaml/badge.svg)](https://github.com/TheGinji/ha_html_dashboard_base/actions/workflows/tests.yaml)
+[![Validate](https://github.com/TheGinji/ha_html_dashboard_base/actions/workflows/validate.yaml/badge.svg)](https://github.com/TheGinji/ha_html_dashboard_base/actions/workflows/validate.yaml)
 [![Licentie: MIT](https://img.shields.io/github/license/TheGinji/ha_html_dashboard_base)](LICENSE)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-steun%20mij-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/theginji)
 
 Draai je eigen HTML-dashboard als paneel in de zijbalk van Home Assistant, met een veilige koppeling naar alleen de entiteiten die jij toestaat.
 
-> **Status: vroege versie (0.1.0).** Het skelet staat, maar is nog niet getest op een echte installatie. Tests en schermafbeeldingen volgen. Gebruik het op eigen risico en meld problemen via Issues.
+> **Status: vroege versie (0.1.0).** De automatische tests en de validatie zijn groen, maar de integratie is nog niet getest op een echte installatie. Schermafbeeldingen volgen. Gebruik het op eigen risico en meld problemen via Issues.
 
 ## In het kort (English)
 
@@ -110,7 +112,12 @@ Verwijder de integratie via Instellingen, Apparaten en diensten. Het geüploade 
 
 ## Kwaliteit
 
-Aangepaste integraties hebben geen officiële kwaliteitsscore. Wat we tot nu toe hebben getoetst: nog niets op een echte installatie. De code is geschreven met hulp van een AI-hulpmiddel. Tests (pytest) en validatie (Hassfest en HACS) komen er nog bij. Zodra die bestaan, zie je de uitslag in de badges bovenaan.
+Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zelf hebben getoetst:
+
+- Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, de instelling en de opties, het uploaden, en de koppeling met de regels voor toegestane entiteiten.
+- Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
+
+Wat we nog niet hebben getoetst: een echte installatie, en hoe het paneel eruitziet op een telefoon of tablet. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
