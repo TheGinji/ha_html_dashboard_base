@@ -8,11 +8,11 @@
 
 Draai je eigen HTML-dashboard als paneel in de zijbalk van Home Assistant, met een veilige koppeling naar alleen de entiteiten die jij toestaat.
 
-> **Status: vroege versie (0.1.0).** De automatische tests en de validatie zijn groen, maar de integratie is nog niet getest op een echte installatie. Schermafbeeldingen volgen. Gebruik het op eigen risico en meld problemen via Issues.
+> **Status: vroege versie.** De automatische tests en de validatie zijn groen, maar de integratie is nog maar op één installatie geprobeerd. Schermafbeeldingen volgen. Gebruik het op eigen risico en meld problemen via Issues.
 
 ## In het kort (English)
 
-Dashboard Base adds a sidebar panel to Home Assistant that runs a single HTML file you upload. The page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities you select. Early version, not tested on a real installation yet. The documentation below is in Dutch.
+Dashboard Base adds a sidebar panel to Home Assistant that runs a single HTML file you upload. The page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities you select. Early version, so far only tried on a single installation. The documentation below is in Dutch.
 
 ## Is dit voor jou?
 
@@ -96,6 +96,7 @@ Wat dit niet dekt:
 - **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren. Het domein moet in de lijst hierboven staan.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
+- **Na een update ziet het paneel er nog hetzelfde uit:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
 ## Beperkingen
@@ -117,7 +118,7 @@ Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zel
 - Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, de instelling en de opties, het uploaden, en de koppeling met de regels voor toegestane entiteiten.
 - Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
 
-Wat we nog niet hebben getoetst: een echte installatie, en hoe het paneel eruitziet op een telefoon of tablet. De code is geschreven met hulp van een AI-hulpmiddel.
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
