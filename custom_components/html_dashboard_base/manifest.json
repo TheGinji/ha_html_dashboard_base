@@ -1,0 +1,14 @@
+{
+  "domain": "html_dashboard_base",
+  "name": "Dashboard Base",
+  "codeowners": ["@TheGinji"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "panel_custom", "websocket_api", "file_upload"],
+  "documentation": "https://github.com/TheGinji/ha_html_dashboard_base",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/TheGinji/ha_html_dashboard_base/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}
