@@ -2,6 +2,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![Licentie: MIT](https://img.shields.io/github/license/TheGinji/ha_html_dashboard_base)](LICENSE)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-steun%20mij-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/theginji)
 
 Draai je eigen HTML-dashboard als paneel in de zijbalk van Home Assistant, met een veilige koppeling naar alleen de entiteiten die jij toestaat.
 
@@ -110,6 +111,12 @@ Verwijder de integratie via Instellingen, Apparaten en diensten. Het geüploade 
 ## Kwaliteit
 
 Aangepaste integraties hebben geen officiële kwaliteitsscore. Wat we tot nu toe hebben getoetst: nog niets op een echte installatie. De code is geschreven met hulp van een AI-hulpmiddel. Tests (pytest) en validatie (Hassfest en HACS) komen er nog bij. Zodra die bestaan, zie je de uitslag in de badges bovenaan.
+
+## Steun
+
+Dashboard Base is gratis en open source. Heb je er plezier van, dan is een kopje koffie welkom, maar nooit verplicht.
+
+[![Steun me op Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/theginji)
 
 ## Licentie
 
