@@ -14,6 +14,7 @@ from custom_components.html_dashboard_base.util import (
     describe_html,
     html_file,
     page_title,
+    placeholder_html,
 )
 
 
@@ -61,9 +62,43 @@ def test_describe_html_not_utf8(tmp_path: Path) -> None:
 
 def test_current_text() -> None:
     info = {"title": "Mijn paneel", "size": 2048, "modified": "2026-11-02 21:03"}
-    assert current_text(info) == "Mijn paneel \u00b7 2.0 KB \u00b7 2026-11-02 21:03"
+    assert current_text(info) == "Mijn paneel \u00b7 2.00 KB \u00b7 2026-11-02 21:03"
+    assert (
+        current_text(info, "starter.html")
+        == "starter.html \u00b7 2.00 KB \u00b7 2026-11-02 21:03"
+    )
     assert current_text({**info, "title": None}).startswith("HTML \u00b7 ")
     assert current_text(None) == "\u2013"
+    assert current_text(None, "starter.html") == "\u2013"
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [
+        ("nl", "nog geen HTML-bestand"),
+        ("nl-NL", "nog geen HTML-bestand"),
+        ("en", "no HTML file yet"),
+        ("de", "no HTML file yet"),
+    ],
+)
+def test_placeholder_language(language: str, expected: str) -> None:
+    assert expected in placeholder_html("Thuis", language)
+
+
+def test_placeholder_escapes_the_title() -> None:
+    page = placeholder_html("Mijn <paneel>", "nl")
+
+    assert "Mijn &lt;paneel&gt;" in page
+    assert "<paneel>" not in page
+
+
+def test_placeholder_explains_where_to_upload() -> None:
+    page = placeholder_html("Thuis", "nl")
+
+    assert "<h1>Thuis</h1>" in page
+    assert "Upload HTML-dashboard" in page
+    assert "tandwiel" in page
+    assert "starter.html" in page
 
 
 async def test_html_file(hass: HomeAssistant) -> None:

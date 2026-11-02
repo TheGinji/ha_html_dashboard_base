@@ -19,6 +19,7 @@ from custom_components.html_dashboard_base.const import (
     CONF_DASHBOARD_ID,
     CONF_ENTITIES,
     CONF_HTML,
+    CONF_HTML_NAME,
     CONF_PANEL_URL,
     CONF_REMOVE_HTML,
     CONF_TITLE,
@@ -56,6 +57,16 @@ async def start_user_flow(hass: HomeAssistant) -> str:
     return result["flow_id"]
 
 
+async def set_file_name(
+    hass: HomeAssistant, entry: MockConfigEntry, name: str
+) -> None:
+    """Zet de bewaarde bestandsnaam in de opties van een dashboard."""
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_HTML_NAME: name}
+    )
+    await hass.async_block_till_done()
+
+
 async def test_user_flow_without_upload(
     hass: HomeAssistant,
     skip_dependencies: None,
@@ -88,7 +99,7 @@ async def test_user_flow_with_upload(
     panel_mocks: tuple[AsyncMock, MagicMock],
     html_dir: Path,
 ) -> None:
-    """Een geuploade pagina wordt onder het id van dit dashboard opgeslagen."""
+    """Een geuploade pagina wordt opgeslagen, met de naam van het bestand."""
     upload = tmp_path / "upload.html"
     await write_file(hass, upload, "<html><body>hoi</body></html>")
     flow_id = await start_user_flow(hass)
@@ -100,11 +111,38 @@ async def test_user_flow_with_upload(
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["options"] == {CONF_TITLE: "Thuis", CONF_ENTITIES: []}
+    assert result["options"] == {
+        CONF_TITLE: "Thuis",
+        CONF_ENTITIES: [],
+        CONF_HTML_NAME: "upload.html",
+    }
     dashboard_id = result["data"][CONF_DASHBOARD_ID]
     assert await list_files(hass, html_dir) == [f"{dashboard_id}.html"]
     saved = html_file(hass, dashboard_id)
     assert await read_file(hass, saved) == "<html><body>hoi</body></html>"
+
+
+async def test_user_flow_upload_without_known_name(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    skip_dependencies: None,
+    panel_mocks: tuple[AsyncMock, MagicMock],
+    html_dir: Path,
+) -> None:
+    """Is de naam van het bestand niet bekend (alleen het id), dan wordt er geen bewaard."""
+    upload = tmp_path / FILE_ID
+    await write_file(hass, upload, "<html></html>")
+    flow_id = await start_user_flow(hass)
+
+    with patch_upload(upload):
+        result = await hass.config_entries.flow.async_configure(
+            flow_id, {CONF_TITLE: "Thuis", CONF_HTML: FILE_ID}
+        )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_HTML_NAME not in result["options"]
+    assert len(await list_files(hass, html_dir)) == 1
 
 
 @pytest.mark.parametrize(
@@ -213,7 +251,7 @@ async def test_max_dashboards(
 async def test_options_flow_shows_current_file(
     hass: HomeAssistant, setup_entry: MockConfigEntry, html_path: Path
 ) -> None:
-    """In de opties staat welk bestand er nu geladen is."""
+    """In de opties staat welk bestand er nu geladen is (zonder bekende naam: de titel)."""
     await write_file(hass, html_path, "<title>Mijn paneel</title>")
 
     result = await hass.config_entries.options.async_init(setup_entry.entry_id)
@@ -221,6 +259,20 @@ async def test_options_flow_shows_current_file(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "init"
     assert "Mijn paneel" in result["description_placeholders"]["current"]
+
+
+async def test_options_flow_shows_file_name_and_size(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, html_path: Path
+) -> None:
+    """Naam en grootte van het bestand blijven zichtbaar na het opslaan."""
+    await write_file(hass, html_path, "<title>Mijn paneel</title>")
+    await set_file_name(hass, setup_entry, "mijn.html")
+
+    result = await hass.config_entries.options.async_init(setup_entry.entry_id)
+
+    current = result["description_placeholders"]["current"]
+    assert current.startswith("mijn.html \u00b7 ")
+    assert " KB " in current
 
 
 async def test_options_flow_without_file(
@@ -253,14 +305,32 @@ async def test_options_flow_updates(
     )
 
 
+async def test_options_flow_keeps_file_name_when_only_title_changes(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, html_path: Path
+) -> None:
+    await write_file(hass, html_path, "<html>oud</html>")
+    await set_file_name(hass, setup_entry, "oud.html")
+
+    result = await hass.config_entries.options.async_init(setup_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_TITLE: "Nieuw"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert setup_entry.options[CONF_HTML_NAME] == "oud.html"
+    assert await read_file(hass, html_path) == "<html>oud</html>"
+
+
 async def test_options_flow_replaces_upload(
     hass: HomeAssistant,
     tmp_path: Path,
     setup_entry: MockConfigEntry,
     html_path: Path,
 ) -> None:
-    """Een nieuw bestand vervangt het huidige dashboard."""
+    """Een nieuw bestand vervangt het huidige dashboard en zijn naam."""
     await write_file(hass, html_path, "<html>oud</html>")
+    await set_file_name(hass, setup_entry, "oud.html")
     upload = tmp_path / "upload.html"
     await write_file(hass, upload, "<html>nieuw</html>")
 
@@ -274,13 +344,15 @@ async def test_options_flow_replaces_upload(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert await read_file(hass, html_path) == "<html>nieuw</html>"
+    assert setup_entry.options[CONF_HTML_NAME] == "upload.html"
 
 
 async def test_options_flow_removes_file(
     hass: HomeAssistant, setup_entry: MockConfigEntry, html_path: Path
 ) -> None:
-    """Met het vakje Verwijderen wordt het opgeslagen bestand gewist."""
+    """Met Verwijder HTML wordt het opgeslagen bestand gewist, ook de naam."""
     await write_file(hass, html_path, "<html>oud</html>")
+    await set_file_name(hass, setup_entry, "oud.html")
 
     result = await hass.config_entries.options.async_init(setup_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -291,6 +363,7 @@ async def test_options_flow_removes_file(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert not await file_exists(hass, html_path)
+    assert CONF_HTML_NAME not in setup_entry.options
 
 
 async def test_options_flow_new_file_wins_over_remove(
@@ -299,7 +372,7 @@ async def test_options_flow_new_file_wins_over_remove(
     setup_entry: MockConfigEntry,
     html_path: Path,
 ) -> None:
-    """Kies je tegelijk een nieuw bestand en Verwijderen, dan blijft het nieuwe."""
+    """Kies je tegelijk een nieuw bestand en Verwijder HTML, dan blijft het nieuwe."""
     await write_file(hass, html_path, "<html>oud</html>")
     upload = tmp_path / "upload.html"
     await write_file(hass, upload, "<html>nieuw</html>")

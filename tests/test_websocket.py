@@ -64,13 +64,14 @@ async def test_registry(
 async def test_get_html(
     hass: HomeAssistant, client, mock_entry: MockConfigEntry
 ) -> None:
+    """Zonder bestand komt er een uitleg waar je er een uploadt."""
     await client.send_json(
         {"id": 1, "type": f"{DOMAIN}/get_html", "entry_id": mock_entry.entry_id}
     )
     msg = await client.receive_json()
 
     assert msg["success"]
-    assert "Nog geen dashboard" in msg["result"]["html"]
+    assert "no HTML file yet" in msg["result"]["html"]
 
 
 async def test_call_allowed(
@@ -136,13 +137,17 @@ async def test_call_invalid_format(
     assert msg["error"]["code"] == "invalid_format"
 
 
-async def test_states_without_entry_id(hass: HomeAssistant, client) -> None:
-    """Zonder dashboard-id weigert het schema de opdracht."""
+async def test_states_without_entry_id_uses_the_only_dashboard(
+    hass: HomeAssistant, client
+) -> None:
+    """Een oud paneelbestand stuurt geen id mee: met één dashboard werkt dat nog."""
+    hass.states.async_set("light.keuken", "on")
+
     await client.send_json({"id": 1, "type": f"{DOMAIN}/states"})
     msg = await client.receive_json()
 
-    assert not msg["success"]
-    assert msg["error"]["code"] == "invalid_format"
+    assert msg["success"]
+    assert [row["entity_id"] for row in msg["result"]] == ["light.keuken"]
 
 
 async def test_subscribe(

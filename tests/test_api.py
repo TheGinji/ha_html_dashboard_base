@@ -141,12 +141,29 @@ async def test_subscribe_forwards_allowed_changes(
 async def test_get_html_placeholder(
     hass: HomeAssistant, setup_entry: MockConfigEntry
 ) -> None:
-    """Zonder upload komt er een korte melding."""
+    """Zonder bestand komt er een uitleg met de naam van het dashboard."""
     connection = make_connection()
     api.ws_get_html(hass, connection, msg("get_html", setup_entry))
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert "Nog geen dashboard" in connection.send_result.call_args.args[1]["html"]
+    page = connection.send_result.call_args.args[1]["html"]
+    assert "no HTML file yet" in page
+    assert "<h1>Dashboard</h1>" in page
+
+
+async def test_get_html_placeholder_in_dutch(
+    hass: HomeAssistant, setup_entry: MockConfigEntry
+) -> None:
+    """De uitleg volgt de taal van Home Assistant."""
+    hass.config.language = "nl"
+
+    connection = make_connection()
+    api.ws_get_html(hass, connection, msg("get_html", setup_entry))
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    page = connection.send_result.call_args.args[1]["html"]
+    assert "nog geen HTML-bestand" in page
+    assert "Upload HTML-dashboard" in page
 
 
 async def test_get_html_uploaded(
@@ -188,6 +205,70 @@ async def test_unknown_entry(hass: HomeAssistant, setup_entry: MockConfigEntry) 
     states.send_result.assert_called_once_with(1, [])
     assert html.send_error.call_args.args[1] == "not_loaded"
     assert call.send_error.call_args.args[1] == "not_allowed"
+
+
+async def test_missing_entry_id_uses_the_only_dashboard(
+    hass: HomeAssistant, setup_entry: MockConfigEntry
+) -> None:
+    """Een oud paneelbestand stuurt geen id mee: met één dashboard werkt dat nog."""
+    hass.states.async_set("light.keuken", "on")
+    calls = async_mock_service(hass, "light", "turn_on")
+    states = make_connection()
+    call = make_connection()
+    html = make_connection()
+
+    api.ws_states(hass, states, {"id": 1, "type": f"{DOMAIN}/states"})
+    api.ws_call(
+        hass,
+        call,
+        {
+            "id": 1,
+            "type": f"{DOMAIN}/call",
+            "domain": "light",
+            "service": "turn_on",
+            "data": {"entity_id": "light.keuken"},
+        },
+    )
+    api.ws_get_html(hass, html, {"id": 1, "type": f"{DOMAIN}/get_html"})
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert [row["entity_id"] for row in states.send_result.call_args.args[1]] == [
+        "light.keuken"
+    ]
+    call.send_result.assert_called_once_with(1)
+    assert len(calls) == 1
+    assert "html" in html.send_result.call_args.args[1]
+
+
+async def test_missing_entry_id_with_two_dashboards(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, second_entry: MockConfigEntry
+) -> None:
+    """Zonder id en met meer dan één dashboard kan het niet geraden worden: niets."""
+    hass.states.async_set("light.keuken", "on")
+    calls = async_mock_service(hass, "light", "turn_on")
+    states = make_connection()
+    call = make_connection()
+    html = make_connection()
+
+    api.ws_states(hass, states, {"id": 1, "type": f"{DOMAIN}/states"})
+    api.ws_call(
+        hass,
+        call,
+        {
+            "id": 1,
+            "type": f"{DOMAIN}/call",
+            "domain": "light",
+            "service": "turn_on",
+            "data": {"entity_id": "light.keuken"},
+        },
+    )
+    api.ws_get_html(hass, html, {"id": 1, "type": f"{DOMAIN}/get_html"})
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    states.send_result.assert_called_once_with(1, [])
+    assert call.send_error.call_args.args[1] == "not_allowed"
+    assert html.send_error.call_args.args[1] == "not_loaded"
+    assert calls == []
 
 
 async def test_call_allowed(hass: HomeAssistant, setup_entry: MockConfigEntry) -> None:
