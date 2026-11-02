@@ -27,7 +27,7 @@
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Huidig bestand: {current}\n\nWijzig de naam of de toegestane entiteiten. Kies Upload HTML-dashboard om het huidige bestand te vervangen, of laat het leeg om het te houden. Zet Verwijder HTML aan om het bestand te wissen.",
+        "description": "Wijzig de naam of de toegestane entiteiten. Kies Upload HTML-dashboard om het huidige bestand te vervangen, of laat het leeg om het te houden. Zet Verwijder HTML aan om het bestand te wissen.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
@@ -36,7 +36,7 @@
         },
         "data_description": {
           "entities": "Alleen deze entiteiten zijn zichtbaar voor dit dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
-          "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen).",
+          "html": "Huidig bestand: {current}\n\nEén los .html-bestand (maximaal 2 MB, zonder externe bronnen).",
           "remove_html": "Wist het opgeslagen bestand van dit dashboard. Kies je tegelijk een nieuw bestand, dan wordt dat nieuwe bestand bewaard."
         }
       }

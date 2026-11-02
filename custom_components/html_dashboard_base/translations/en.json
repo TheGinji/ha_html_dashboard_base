@@ -27,7 +27,7 @@
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Current file: {current}\n\nChange the name or the allowed entities. Choose Upload HTML dashboard to replace the current file, or leave it empty to keep it. Turn on Remove HTML to delete the file.",
+        "description": "Change the name or the allowed entities. Choose Upload HTML dashboard to replace the current file, or leave it empty to keep it. Turn on Remove HTML to delete the file.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",
@@ -36,7 +36,7 @@
         },
         "data_description": {
           "entities": "Only these entities are visible to this dashboard. Scenes and scripts you add may do more than this list.",
-          "html": "One self-contained .html file (up to 2 MB, no external resources).",
+          "html": "Current file: {current}\n\nOne self-contained .html file (up to 2 MB, no external resources).",
           "remove_html": "Deletes the stored file of this dashboard. If you also choose a new file, the new file is kept."
         }
       }
