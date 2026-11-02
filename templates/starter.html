@@ -13,6 +13,7 @@
     DashboardBase.states()                      -> huidige standen
     DashboardBase.subscribe(cb)                 -> cb({entity_id, state}) bij elke wijziging
     DashboardBase.call(domain, service, data)   -> service aanroepen, data bevat entity_id
+    DashboardBase.info()                        -> {version, call_domains}: wat je mag bedienen
 
   Open je dit bestand los in een browser, dan draait de demo-modus met
   verzonnen gegevens. Binnen het paneel gebruikt het je echte entiteiten.
@@ -62,6 +63,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
   const demo = !window.DashboardBase;
   const api = window.DashboardBase || makeDemo();
   let toastTimer;
+  let callDomains = null; // null = onbekend: dan mag elke bekende actie
 
   function toast(msg) {
     const t = $("#toast");
@@ -71,9 +73,14 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     toastTimer = setTimeout(() => (t.style.opacity = 0), 3000);
   }
 
+  function actionFor(domain) {
+    const action = ACTION[domain];
+    return action && (!callDomains || callDomains.has(domain)) ? action : null;
+  }
+
   function text(s) {
     const a = s.attributes || {}, d = s.entity_id.split(".")[0];
-    if (RUN.has(d)) return "Uitvoeren";
+    if (RUN.has(d) && actionFor(d)) return "Uitvoeren";
     if (d === "climate" && a.current_temperature != null) return a.current_temperature + "°";
     if (d === "sensor") return s.state + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
     return NL[s.state] || s.state;
@@ -99,7 +106,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
   }
 
   function build(id) {
-    const domain = id.split(".")[0], action = ACTION[domain];
+    const domain = id.split(".")[0], action = actionFor(domain);
     const el = document.createElement(action ? "button" : "div");
     el.className = action ? "tile" : "tile ro";
     el.innerHTML = '<span class="n"></span><span class="v"></span>';
@@ -167,6 +174,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     return {
       registry: async () => R,
       states: async () => Object.keys(S).map(snap),
+      info: async () => ({ version: "demo", call_domains: Object.keys(ACTION) }),
       subscribe: (cb) => (subs.add(cb), () => subs.delete(cb)),
       call: async (domain, service, data) => {
         const id = data && data.entity_id, s = S[id];
@@ -182,6 +190,15 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     };
   }
 
+  async function loadCallDomains() {
+    try {
+      const info = typeof api.info === "function" ? await api.info() : null;
+      return info ? new Set(info.call_domains) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function init() {
     $("#demo").style.display = demo ? "block" : "none";
     clock();
@@ -189,6 +206,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
       const [r, s] = await Promise.all([api.registry(), api.states()]);
       r.forEach((e) => reg.set(e.entity_id, e));
       s.forEach((x) => st.set(x.entity_id, x));
+      callDomains = await loadCallDomains();
       api.subscribe((ev) => {
         if (ev.state) st.set(ev.entity_id, ev.state);
         else st.delete(ev.entity_id);

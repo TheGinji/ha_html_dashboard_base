@@ -17,6 +17,7 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
+from homeassistant.loader import async_get_integration
 
 from .const import ALLOWED_DOMAINS, BLOCKED_TARGET_KEYS, DOMAIN
 
@@ -139,6 +140,22 @@ async def ws_get_html(
     connection.send_result(msg["id"], {"html": html})
 
 
+@websocket_api.websocket_command({vol.Required("type"): "html_dashboard_base/info"})
+@websocket_api.async_response
+async def ws_info(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Versie en de domeinen die een dashboard mag bedienen. Leest alleen."""
+    integration = await async_get_integration(hass, DOMAIN)
+    connection.send_result(
+        msg["id"],
+        {
+            "version": str(integration.version),
+            "call_domains": sorted(ALLOWED_DOMAINS),
+        },
+    )
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/call",
@@ -176,5 +193,12 @@ async def ws_call(
 
 def async_register_api(hass: HomeAssistant) -> None:
     """Alle opdrachten registreren."""
-    for command in (ws_registry, ws_states, ws_subscribe, ws_get_html, ws_call):
+    for command in (
+        ws_registry,
+        ws_states,
+        ws_subscribe,
+        ws_get_html,
+        ws_info,
+        ws_call,
+    ):
         websocket_api.async_register_command(hass, command)

@@ -11,7 +11,7 @@ m.ok?r.res(m.result):r.rej(new Error(m.error))});
 const req=(op,args)=>new Promise((res,rej)=>{const id=++n;w.set(id,{res,rej});
 parent.postMessage({dbase:1,id,op,args},"*")});
 window.DashboardBase=Object.freeze({
-registry:()=>req("registry"),states:()=>req("states"),
+registry:()=>req("registry"),states:()=>req("states"),info:()=>req("info"),
 call:(domain,service,data={})=>req("call",{domain,service,data}),
 subscribe(cb){subs.add(cb);return()=>subs.delete(cb)}});})();`;
 
@@ -143,6 +143,8 @@ class DashboardBasePanel extends HTMLElement {
       return c.sendMessagePromise({ type: "html_dashboard_base/registry" });
     if (op === "states")
       return c.sendMessagePromise({ type: "html_dashboard_base/states" });
+    if (op === "info")
+      return c.sendMessagePromise({ type: "html_dashboard_base/info" });
     if (op === "call")
       return c.sendMessagePromise({
         type: "html_dashboard_base/call",
