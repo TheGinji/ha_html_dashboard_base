@@ -15,6 +15,25 @@ from .const import DATA_DIR
 
 _TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
+_PLACEHOLDER = {
+    "nl": (
+        "Dit dashboard heeft nog geen HTML-bestand.",
+        "Upload je HTML-dashboard zo: ga naar Instellingen, Apparaten en diensten, "
+        "Dashboard Base. Tik bij dit dashboard op het tandwiel (Configureren), kies "
+        "Upload HTML-dashboard en tik op Verzend.",
+        "Nog geen bestand? Een voorbeeld staat in de map templates (starter.html) "
+        "op github.com/TheGinji/ha_html_dashboard_base.",
+    ),
+    "en": (
+        "This dashboard has no HTML file yet.",
+        "Upload your HTML dashboard like this: go to Settings, Devices & services, "
+        "Dashboard Base. Tap the gear icon (Configure) on this dashboard, choose "
+        "Upload HTML dashboard and submit.",
+        "No file yet? An example is in the templates folder (starter.html) "
+        "at github.com/TheGinji/ha_html_dashboard_base.",
+    ),
+}
+
 
 def html_file(hass: HomeAssistant, dashboard_id: str) -> Path:
     """Pad van het opgeslagen bestand van een dashboard."""
@@ -45,9 +64,28 @@ def describe_html(path: Path) -> dict[str, Any] | None:
     return {"title": title, "size": stat.st_size, "modified": modified}
 
 
-def current_text(info: dict[str, Any] | None) -> str:
-    """Korte, taalloze beschrijving van het huidige bestand."""
+def current_text(info: dict[str, Any] | None, name: str | None = None) -> str:
+    """Korte, taalloze beschrijving van het huidige bestand: naam, grootte en datum.
+
+    Is de bestandsnaam niet bekend, dan komt de titel van de pagina in de plaats.
+    """
     if info is None:
         return "\u2013"
-    size = f"{info['size'] / 1024:.1f} KB"
-    return f"{info['title'] or 'HTML'} \u00b7 {size} \u00b7 {info['modified']}"
+    label = name or info["title"] or "HTML"
+    size = f"{info['size'] / 1024:.2f} KB"
+    return f"{label} \u00b7 {size} \u00b7 {info['modified']}"
+
+
+def placeholder_html(title: str, language: str) -> str:
+    """De pagina die een dashboard zonder bestand toont: wat er mist en waar je uploadt."""
+    heading, steps, hint = _PLACEHOLDER["nl" if language.startswith("nl") else "en"]
+    return (
+        '<!doctype html><html><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<style>body{margin:0;padding:2rem;font:16px/1.5 system-ui,sans-serif;"
+        "color:#1d201c;background:#f4f4f1}"
+        "@media (prefers-color-scheme:dark){body{color:#ecece6;background:#141613}}"
+        "h1{margin:0 0 1rem;font-size:1.3rem}p{max-width:36rem}</style></head><body>"
+        f"<h1>{html.escape(title)}</h1><p>{heading}</p><p>{steps}</p><p>{hint}</p>"
+        "</body></html>"
+    )

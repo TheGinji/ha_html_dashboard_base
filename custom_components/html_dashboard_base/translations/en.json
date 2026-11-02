@@ -3,11 +3,11 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Create a dashboard: choose a name for the sidebar item and the entities this dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a short message saying nothing has been uploaded yet is shown.",
+        "description": "Create a dashboard: choose a name for the sidebar item and the entities this dashboard may see and control. You can upload your HTML dashboard now or later. Without a file, the dashboard shows a message that explains where to upload it.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",
-          "html": "HTML dashboard"
+          "html": "Upload HTML dashboard"
         },
         "data_description": {
           "entities": "Only these entities are visible to this dashboard. Scenes and scripts you add may do more than this list.",
@@ -27,12 +27,12 @@
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Current file: {current}\n\nChange the name or the allowed entities. Upload a new HTML file to replace the current one, or leave it empty to keep it.",
+        "description": "Current file: {current}\n\nChange the name or the allowed entities. Choose Upload HTML dashboard to replace the current file, or leave it empty to keep it. Turn on Remove HTML to delete the file.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",
-          "html": "HTML dashboard",
-          "remove_html": "Remove the current HTML file"
+          "html": "Upload HTML dashboard",
+          "remove_html": "Remove HTML"
         },
         "data_description": {
           "entities": "Only these entities are visible to this dashboard. Scenes and scripts you add may do more than this list.",

@@ -23,6 +23,7 @@ from .const import (
     CONF_DASHBOARD_ID,
     CONF_ENTITIES,
     CONF_HTML,
+    CONF_HTML_NAME,
     CONF_PANEL_URL,
     CONF_REMOVE_HTML,
     CONF_TITLE,
@@ -50,40 +51,58 @@ def _schema(values: dict[str, Any], *, options: bool) -> vol.Schema:
     return vol.Schema(schema)
 
 
-def _store_upload(hass: HomeAssistant, file_id: str, dest: Path) -> str | None:
+def _store_upload(
+    hass: HomeAssistant, file_id: str, dest: Path
+) -> tuple[str | None, str]:
+    """Het geuploade bestand opslaan. Geeft (fout, bestandsnaam) terug.
+
+    Home Assistant bewaart een upload onder de naam die de browser meestuurde. Is dat
+    toch alleen het id, dan is de naam onbekend en geven we een lege naam terug.
+    """
     with process_uploaded_file(hass, file_id) as tmp:
+        name = "" if tmp.name == file_id else tmp.name[:100]
         if tmp.stat().st_size > MAX_HTML_BYTES:
-            return "html_too_large"
+            return "html_too_large", ""
         try:
             text = tmp.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            return "html_invalid"
+            return "html_invalid", ""
     if "<" not in text:
-        return "html_invalid"
+        return "html_invalid", ""
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(text, encoding="utf-8")
-    return None
+    return None, name
 
 
 async def _async_apply_html(
     hass: HomeAssistant, user_input: dict[str, Any], dest: Path
-) -> dict[str, str]:
-    """Een nieuw bestand opslaan, of het huidige verwijderen. Een nieuw bestand wint."""
+) -> tuple[dict[str, str], str | None]:
+    """Een nieuw bestand opslaan, of het huidige verwijderen. Een nieuw bestand wint.
+
+    Geeft de fouten en de nieuwe bestandsnaam terug. De naam is leeg als die onbekend is
+    of als het bestand is verwijderd, en None als er niets is veranderd.
+    """
     file_id = user_input.pop(CONF_HTML, None)
     remove = user_input.pop(CONF_REMOVE_HTML, False)
     if file_id:
-        error = await hass.async_add_executor_job(_store_upload, hass, file_id, dest)
-        return {"base": error} if error else {}
+        error, name = await hass.async_add_executor_job(
+            _store_upload, hass, file_id, dest
+        )
+        return ({"base": error}, None) if error else ({}, name)
     if remove:
         await hass.async_add_executor_job(dest.unlink, True)
-    return {}
+        return {}, ""
+    return {}, None
 
 
-def _options(user_input: dict[str, Any]) -> dict[str, Any]:
-    return {
+def _options(user_input: dict[str, Any], html_name: str | None) -> dict[str, Any]:
+    options: dict[str, Any] = {
         CONF_TITLE: user_input[CONF_TITLE],
         CONF_ENTITIES: user_input.get(CONF_ENTITIES, []),
     }
+    if html_name:
+        options[CONF_HTML_NAME] = html_name
+    return options
 
 
 class DashboardBaseConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -109,7 +128,7 @@ class DashboardBaseConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             dashboard_id = uuid.uuid4().hex
-            errors = await _async_apply_html(
+            errors, html_name = await _async_apply_html(
                 self.hass, user_input, html_file(self.hass, dashboard_id)
             )
             if not errors:
@@ -119,7 +138,7 @@ class DashboardBaseConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_DASHBOARD_ID: dashboard_id,
                         CONF_PANEL_URL: self._unique_panel_url(user_input[CONF_TITLE]),
                     },
-                    options=_options(user_input),
+                    options=_options(user_input, html_name),
                 )
         return self.async_show_form(
             step_id="user",
@@ -140,11 +159,14 @@ class DashboardBaseOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         dest = html_file(self.hass, self.config_entry.data[CONF_DASHBOARD_ID])
+        current_name = self.config_entry.options.get(CONF_HTML_NAME)
         errors: dict[str, str] = {}
         if user_input is not None:
-            errors = await _async_apply_html(self.hass, user_input, dest)
+            errors, html_name = await _async_apply_html(self.hass, user_input, dest)
             if not errors:
-                return self.async_create_entry(data=_options(user_input))
+                if html_name is None:
+                    html_name = current_name
+                return self.async_create_entry(data=_options(user_input, html_name))
         info = await self.hass.async_add_executor_job(describe_html, dest)
         return self.async_show_form(
             step_id="init",
@@ -152,5 +174,5 @@ class DashboardBaseOptionsFlow(OptionsFlow):
                 user_input or dict(self.config_entry.options), options=True
             ),
             errors=errors,
-            description_placeholders={"current": current_text(info)},
+            description_placeholders={"current": current_text(info, current_name)},
         )

@@ -19,18 +19,20 @@ from homeassistant.helpers import (
 )
 from homeassistant.loader import async_get_integration
 
-from .const import ALLOWED_DOMAINS, BLOCKED_TARGET_KEYS, DOMAIN
-
-_PLACEHOLDER = (
-    "<!doctype html><meta charset=utf-8>"
-    "<body style='font-family:sans-serif;padding:2rem'>"
-    "Nog geen dashboard geüpload. Ga naar Instellingen, Apparaten en "
-    "diensten, Dashboard Base, Configureren."
+from .const import (
+    ALLOWED_DOMAINS,
+    BLOCKED_TARGET_KEYS,
+    CONF_TITLE,
+    DEFAULT_TITLE,
+    DOMAIN,
 )
+from .util import placeholder_html
 
 
-def _entry(hass: HomeAssistant, entry_id: str):
+def _entry(hass: HomeAssistant, entry_id: str | None):
     """De geladen instelling met dit id, of None."""
+    if entry_id is None:
+        return None
     entry = hass.config_entries.async_get_entry(entry_id)
     if (
         entry is not None
@@ -41,7 +43,25 @@ def _entry(hass: HomeAssistant, entry_id: str):
     return None
 
 
-def _allowed(hass: HomeAssistant, entry_id: str) -> frozenset[str]:
+def _entry_id(hass: HomeAssistant, msg: dict[str, Any]) -> str | None:
+    """Het dashboard waar een opdracht bij hoort.
+
+    Het paneel geeft dat altijd mee. Een oud paneelbestand dat nog in de cache van een
+    app of browser staat, doet dat niet. Daarvoor geldt: bestaat er precies één
+    dashboard, dan is dat het dashboard. Bij meer dan één kan het niet geraden worden.
+    """
+    entry_id = msg.get("entry_id")
+    if entry_id is not None:
+        return entry_id
+    loaded = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.state is ConfigEntryState.LOADED
+    ]
+    return loaded[0].entry_id if len(loaded) == 1 else None
+
+
+def _allowed(hass: HomeAssistant, entry_id: str | None) -> frozenset[str]:
     entry = _entry(hass, entry_id)
     return entry.runtime_data.allowed if entry else frozenset()
 
@@ -56,14 +76,14 @@ def _snapshot(state: State) -> dict[str, Any]:
     }
 
 
-def _read_html(path: Path) -> str:
-    return path.read_text(encoding="utf-8") if path.is_file() else _PLACEHOLDER
+def _read_html(path: Path) -> str | None:
+    return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/registry",
-        vol.Required("entry_id"): str,
+        vol.Optional("entry_id"): str,
     }
 )
 @callback
@@ -75,7 +95,7 @@ def ws_registry(
     dev_reg = dr.async_get(hass)
     area_reg = ar.async_get(hass)
     result = []
-    for entity_id in sorted(_allowed(hass, msg["entry_id"])):
+    for entity_id in sorted(_allowed(hass, _entry_id(hass, msg))):
         entry = ent_reg.async_get(entity_id)
         state = hass.states.get(entity_id)
         area_id = entry.area_id if entry else None
@@ -99,7 +119,7 @@ def ws_registry(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/states",
-        vol.Required("entry_id"): str,
+        vol.Optional("entry_id"): str,
     }
 )
 @callback
@@ -107,14 +127,15 @@ def ws_states(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     """Huidige standen van de toegestane entiteiten van dit dashboard."""
-    states = (hass.states.get(e) for e in sorted(_allowed(hass, msg["entry_id"])))
+    allowed = _allowed(hass, _entry_id(hass, msg))
+    states = (hass.states.get(e) for e in sorted(allowed))
     connection.send_result(msg["id"], [_snapshot(s) for s in states if s])
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/subscribe",
-        vol.Required("entry_id"): str,
+        vol.Optional("entry_id"): str,
     }
 )
 @callback
@@ -122,7 +143,7 @@ def ws_subscribe(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
     """Wijzigingen van de toegestane entiteiten van dit dashboard doorsturen."""
-    entry_id = msg["entry_id"]
+    entry_id = _entry_id(hass, msg)
 
     @callback
     def _is_allowed(data: Any) -> bool:
@@ -150,19 +171,22 @@ def ws_subscribe(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/get_html",
-        vol.Required("entry_id"): str,
+        vol.Optional("entry_id"): str,
     }
 )
 @websocket_api.async_response
 async def ws_get_html(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Het geüploade bestand van dit dashboard ophalen."""
-    entry = _entry(hass, msg["entry_id"])
+    """Het geüploade bestand van dit dashboard ophalen, of een uitleg als er geen is."""
+    entry = _entry(hass, _entry_id(hass, msg))
     if entry is None:
         connection.send_error(msg["id"], "not_loaded", "Dashboard Base is niet geladen")
         return
     html = await hass.async_add_executor_job(_read_html, entry.runtime_data.html_path)
+    if html is None:
+        title = entry.options.get(CONF_TITLE, DEFAULT_TITLE)
+        html = placeholder_html(title, hass.config.language)
     connection.send_result(msg["id"], {"html": html})
 
 
@@ -185,7 +209,7 @@ async def ws_info(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/call",
-        vol.Required("entry_id"): str,
+        vol.Optional("entry_id"): str,
         vol.Required("domain"): cv.string,
         vol.Required("service"): cv.string,
         vol.Optional("data", default=dict): dict,
@@ -197,7 +221,7 @@ async def ws_call(
 ) -> None:
     """Service aanroepen, alleen voor de toegestane entiteiten van dit dashboard."""
     domain, service, data = msg["domain"], msg["service"], dict(msg["data"])
-    allowed = _allowed(hass, msg["entry_id"])
+    allowed = _allowed(hass, _entry_id(hass, msg))
     entity_ids = cv.ensure_list(data.get("entity_id"))
     if (
         domain not in ALLOWED_DOMAINS

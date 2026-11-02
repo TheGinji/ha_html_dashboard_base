@@ -3,11 +3,11 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Maak een dashboard aan: kies een naam voor het menu-item in de zijbalk en de entiteiten die dit dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een korte melding dat er nog niets is geüpload.",
+        "description": "Maak een dashboard aan: kies een naam voor het menu-item in de zijbalk en de entiteiten die dit dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder bestand toont het dashboard een melding die uitlegt waar je het kunt uploaden.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
-          "html": "HTML-dashboard"
+          "html": "Upload HTML-dashboard"
         },
         "data_description": {
           "entities": "Alleen deze entiteiten zijn zichtbaar voor dit dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
@@ -27,12 +27,12 @@
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Huidig bestand: {current}\n\nWijzig de naam of de toegestane entiteiten. Upload een nieuw HTML-bestand om het huidige te vervangen, of laat het leeg om het te houden.",
+        "description": "Huidig bestand: {current}\n\nWijzig de naam of de toegestane entiteiten. Kies Upload HTML-dashboard om het huidige bestand te vervangen, of laat het leeg om het te houden. Zet Verwijder HTML aan om het bestand te wissen.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
-          "html": "HTML-dashboard",
-          "remove_html": "Huidig HTML-bestand verwijderen"
+          "html": "Upload HTML-dashboard",
+          "remove_html": "Verwijder HTML"
         },
         "data_description": {
           "entities": "Alleen deze entiteiten zijn zichtbaar voor dit dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
