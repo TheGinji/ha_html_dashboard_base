@@ -5,16 +5,24 @@ DOMAIN = "html_dashboard_base"
 CONF_TITLE = "title"
 CONF_ENTITIES = "entities"
 CONF_HTML = "html"
+CONF_REMOVE_HTML = "remove_html"
+CONF_DASHBOARD_ID = "dashboard_id"
+CONF_PANEL_URL = "panel_url"
+
+MAX_DASHBOARDS = 5
+
+# Waarden van de eerste (enige) instelling uit versie 0.1.x. Die blijven behouden,
+# zodat het bestand en het adres van het paneel niet veranderen.
+LEGACY_DASHBOARD_ID = "dashboard"
+LEGACY_PANEL_URL = "html-dashboard-base"
 
 DEFAULT_TITLE = "Dashboard"
 DEFAULT_ICON = "mdi:view-dashboard-outline"
 
-PANEL_URL = "html-dashboard-base"
 PANEL_ELEMENT = "html-dashboard-base-panel"
 STATIC_URL = "/html_dashboard_base_static"
 
 DATA_DIR = "html_dashboard_base"
-HTML_FILE = "dashboard.html"
 MAX_HTML_BYTES = 2_000_000
 
 ALLOWED_DOMAINS = frozenset(

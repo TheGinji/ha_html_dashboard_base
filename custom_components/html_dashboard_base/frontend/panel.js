@@ -45,6 +45,14 @@ class DashboardBasePanel extends HTMLElement {
     this._maybeStart();
   }
 
+  // Elk dashboard heeft een eigen paneel. Het id van de instelling zit in de
+  // paneelinstellingen; het paneel stuurt dat bij elke opdracht mee. Een pagina in het
+  // iframe kan dat id niet zelf kiezen.
+  set panel(panel) {
+    this._entryId = panel && panel.config ? panel.config.entry_id : undefined;
+    this._maybeStart();
+  }
+
   set narrow(value) {
     this._menu.hidden = !value;
   }
@@ -74,7 +82,14 @@ class DashboardBasePanel extends HTMLElement {
   }
 
   _maybeStart() {
-    if (this._started || this._failed || !this._hass || !this.isConnected) return;
+    if (
+      this._started ||
+      this._failed ||
+      !this._hass ||
+      !this._entryId ||
+      !this.isConnected
+    )
+      return;
     this._started = true;
     this._start().catch((err) => this._fail(err));
   }
@@ -100,7 +115,7 @@ class DashboardBasePanel extends HTMLElement {
     const conn = this._hass.connection;
     const unsub = await conn.subscribeMessage(
       (payload) => this._post({ dbase: 1, event: true, payload }),
-      { type: "html_dashboard_base/subscribe" }
+      { type: "html_dashboard_base/subscribe", entry_id: this._entryId }
     );
     if (!this._started) {
       unsub();
@@ -109,6 +124,7 @@ class DashboardBasePanel extends HTMLElement {
     this._unsub = unsub;
     const { html } = await conn.sendMessagePromise({
       type: "html_dashboard_base/get_html",
+      entry_id: this._entryId,
     });
     this._show(html);
   }
@@ -153,15 +169,17 @@ class DashboardBasePanel extends HTMLElement {
 
   _op(op, a) {
     const c = this._hass.connection;
+    const entry_id = this._entryId;
     if (op === "registry")
-      return c.sendMessagePromise({ type: "html_dashboard_base/registry" });
+      return c.sendMessagePromise({ type: "html_dashboard_base/registry", entry_id });
     if (op === "states")
-      return c.sendMessagePromise({ type: "html_dashboard_base/states" });
+      return c.sendMessagePromise({ type: "html_dashboard_base/states", entry_id });
     if (op === "info")
       return c.sendMessagePromise({ type: "html_dashboard_base/info" });
     if (op === "call")
       return c.sendMessagePromise({
         type: "html_dashboard_base/call",
+        entry_id,
         domain: String(a.domain),
         service: String(a.service),
         data: a.data || {},

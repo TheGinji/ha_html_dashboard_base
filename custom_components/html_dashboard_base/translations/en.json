@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Choose a name for the sidebar item and the entities your dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a short message saying nothing has been uploaded yet is shown.",
+        "description": "Create a dashboard: choose a name for the sidebar item and the entities this dashboard may see and control. You can upload your HTML dashboard now or later. Without an upload, a short message saying nothing has been uploaded yet is shown.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",
           "html": "HTML dashboard"
         },
         "data_description": {
-          "entities": "Only these entities are visible to the dashboard. Scenes and scripts you add may do more than this list.",
+          "entities": "Only these entities are visible to this dashboard. Scenes and scripts you add may do more than this list.",
           "html": "One self-contained .html file (up to 2 MB, no external resources)."
         }
       }
@@ -18,21 +18,26 @@
     "error": {
       "html_too_large": "The file is larger than 2 MB.",
       "html_invalid": "The file is not a valid UTF-8 file with HTML."
+    },
+    "abort": {
+      "max_dashboards": "You can add at most 5 dashboards. Remove a dashboard first to add a new one."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Change the name or the allowed entities. Upload a new HTML file to replace the current dashboard, or leave it empty to keep the current one.",
+        "description": "Current file: {current}\n\nChange the name or the allowed entities. Upload a new HTML file to replace the current one, or leave it empty to keep it.",
         "data": {
           "title": "Name in the sidebar",
           "entities": "Allowed entities",
-          "html": "HTML dashboard"
+          "html": "HTML dashboard",
+          "remove_html": "Remove the current HTML file"
         },
         "data_description": {
-          "entities": "Only these entities are visible to the dashboard. Scenes and scripts you add may do more than this list.",
-          "html": "One self-contained .html file (up to 2 MB, no external resources)."
+          "entities": "Only these entities are visible to this dashboard. Scenes and scripts you add may do more than this list.",
+          "html": "One self-contained .html file (up to 2 MB, no external resources).",
+          "remove_html": "Deletes the stored file of this dashboard. If you also choose a new file, the new file is kept."
         }
       }
     },

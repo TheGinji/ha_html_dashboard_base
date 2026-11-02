@@ -1,4 +1,4 @@
-"""Websocket-koppeling met rechtencontrole: alleen toegestane entiteiten."""
+"""Websocket-koppeling met rechtencontrole: elk dashboard ziet alleen zijn eigen lijst."""
 
 from __future__ import annotations
 
@@ -29,15 +29,20 @@ _PLACEHOLDER = (
 )
 
 
-def _entry(hass: HomeAssistant):
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is ConfigEntryState.LOADED:
-            return entry
+def _entry(hass: HomeAssistant, entry_id: str):
+    """De geladen instelling met dit id, of None."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if (
+        entry is not None
+        and entry.domain == DOMAIN
+        and entry.state is ConfigEntryState.LOADED
+    ):
+        return entry
     return None
 
 
-def _allowed(hass: HomeAssistant) -> frozenset[str]:
-    entry = _entry(hass)
+def _allowed(hass: HomeAssistant, entry_id: str) -> frozenset[str]:
+    entry = _entry(hass, entry_id)
     return entry.runtime_data.allowed if entry else frozenset()
 
 
@@ -55,17 +60,22 @@ def _read_html(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else _PLACEHOLDER
 
 
-@websocket_api.websocket_command({vol.Required("type"): "html_dashboard_base/registry"})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/registry",
+        vol.Required("entry_id"): str,
+    }
+)
 @callback
 def ws_registry(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Naam, gebied en type van toegestane entiteiten."""
+    """Naam, gebied en type van de toegestane entiteiten van dit dashboard."""
     ent_reg = er.async_get(hass)
     dev_reg = dr.async_get(hass)
     area_reg = ar.async_get(hass)
     result = []
-    for entity_id in sorted(_allowed(hass)):
+    for entity_id in sorted(_allowed(hass, msg["entry_id"])):
         entry = ent_reg.async_get(entity_id)
         state = hass.states.get(entity_id)
         area_id = entry.area_id if entry else None
@@ -86,26 +96,37 @@ def ws_registry(
     connection.send_result(msg["id"], result)
 
 
-@websocket_api.websocket_command({vol.Required("type"): "html_dashboard_base/states"})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/states",
+        vol.Required("entry_id"): str,
+    }
+)
 @callback
 def ws_states(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Huidige standen van toegestane entiteiten."""
-    states = (hass.states.get(e) for e in sorted(_allowed(hass)))
+    """Huidige standen van de toegestane entiteiten van dit dashboard."""
+    states = (hass.states.get(e) for e in sorted(_allowed(hass, msg["entry_id"])))
     connection.send_result(msg["id"], [_snapshot(s) for s in states if s])
 
 
-@websocket_api.websocket_command({vol.Required("type"): "html_dashboard_base/subscribe"})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/subscribe",
+        vol.Required("entry_id"): str,
+    }
+)
 @callback
 def ws_subscribe(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Wijzigingen van toegestane entiteiten doorsturen."""
+    """Wijzigingen van de toegestane entiteiten van dit dashboard doorsturen."""
+    entry_id = msg["entry_id"]
 
     @callback
     def _is_allowed(data: Any) -> bool:
-        return data["entity_id"] in _allowed(hass)
+        return data["entity_id"] in _allowed(hass, entry_id)
 
     @callback
     def _forward(event: Event) -> None:
@@ -126,13 +147,18 @@ def ws_subscribe(
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({vol.Required("type"): "html_dashboard_base/get_html"})
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/get_html",
+        vol.Required("entry_id"): str,
+    }
+)
 @websocket_api.async_response
 async def ws_get_html(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Het geüploade dashboard ophalen."""
-    entry = _entry(hass)
+    """Het geüploade bestand van dit dashboard ophalen."""
+    entry = _entry(hass, msg["entry_id"])
     if entry is None:
         connection.send_error(msg["id"], "not_loaded", "Dashboard Base is niet geladen")
         return
@@ -159,6 +185,7 @@ async def ws_info(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "html_dashboard_base/call",
+        vol.Required("entry_id"): str,
         vol.Required("domain"): cv.string,
         vol.Required("service"): cv.string,
         vol.Optional("data", default=dict): dict,
@@ -168,9 +195,9 @@ async def ws_info(
 async def ws_call(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Service aanroepen, alleen voor toegestane entiteiten."""
+    """Service aanroepen, alleen voor de toegestane entiteiten van dit dashboard."""
     domain, service, data = msg["domain"], msg["service"], dict(msg["data"])
-    allowed = _allowed(hass)
+    allowed = _allowed(hass, msg["entry_id"])
     entity_ids = cv.ensure_list(data.get("entity_id"))
     if (
         domain not in ALLOWED_DOMAINS

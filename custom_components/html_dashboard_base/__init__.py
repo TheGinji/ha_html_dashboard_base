@@ -1,4 +1,4 @@
-"""Dashboard Base: een eigen HTML-dashboard als paneel in Home Assistant."""
+"""Dashboard Base: eigen HTML-dashboards als paneel in Home Assistant."""
 
 from __future__ import annotations
 
@@ -15,27 +15,30 @@ from homeassistant.loader import async_get_integration
 
 from .api import async_register_api
 from .const import (
+    CONF_DASHBOARD_ID,
     CONF_ENTITIES,
+    CONF_PANEL_URL,
     CONF_TITLE,
-    DATA_DIR,
     DEFAULT_ICON,
     DEFAULT_TITLE,
     DOMAIN,
-    HTML_FILE,
+    LEGACY_DASHBOARD_ID,
+    LEGACY_PANEL_URL,
     PANEL_ELEMENT,
-    PANEL_URL,
     STATIC_URL,
 )
+from .util import html_file
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 @dataclass
 class DashboardBaseData:
-    """Runtime-gegevens van de instelling."""
+    """Runtime-gegevens van één dashboard."""
 
     allowed: frozenset[str]
     html_path: Path
+    panel_url: str
 
 
 type DashboardBaseConfigEntry = ConfigEntry[DashboardBaseData]
@@ -54,23 +57,40 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Een instelling uit versie 0.1.x (één dashboard) omzetten naar meerdere dashboards."""
+    if entry.version == 1:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={
+                **entry.data,
+                CONF_DASHBOARD_ID: LEGACY_DASHBOARD_ID,
+                CONF_PANEL_URL: LEGACY_PANEL_URL,
+            },
+            version=2,
+        )
+    return True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: DashboardBaseConfigEntry
 ) -> bool:
-    """Paneel registreren."""
+    """Het paneel van dit dashboard registreren."""
     entry.runtime_data = DashboardBaseData(
         allowed=frozenset(entry.options.get(CONF_ENTITIES, [])),
-        html_path=Path(hass.config.path(DATA_DIR, HTML_FILE)),
+        html_path=html_file(hass, entry.data[CONF_DASHBOARD_ID]),
+        panel_url=entry.data[CONF_PANEL_URL],
     )
     integration = await async_get_integration(hass, DOMAIN)
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name=PANEL_ELEMENT,
-        frontend_url_path=PANEL_URL,
+        frontend_url_path=entry.runtime_data.panel_url,
         module_url=f"{STATIC_URL}/panel.js?v={integration.version}",
         sidebar_title=entry.options.get(CONF_TITLE, DEFAULT_TITLE),
         sidebar_icon=DEFAULT_ICON,
         require_admin=False,
+        config={"entry_id": entry.entry_id},
     )
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
@@ -79,16 +99,16 @@ async def async_setup_entry(
 async def async_unload_entry(
     hass: HomeAssistant, entry: DashboardBaseConfigEntry
 ) -> bool:
-    """Paneel weghalen."""
-    frontend.async_remove_panel(hass, PANEL_URL)
+    """Het paneel van dit dashboard weghalen."""
+    frontend.async_remove_panel(hass, entry.runtime_data.panel_url)
     return True
 
 
 async def async_remove_entry(
     hass: HomeAssistant, entry: DashboardBaseConfigEntry
 ) -> None:
-    """Geüpload dashboard opruimen bij verwijderen."""
-    path = Path(hass.config.path(DATA_DIR, HTML_FILE))
+    """Het geüploade bestand van dit dashboard opruimen bij verwijderen."""
+    path = html_file(hass, entry.data.get(CONF_DASHBOARD_ID, LEGACY_DASHBOARD_ID))
     await hass.async_add_executor_job(path.unlink, True)
 
 

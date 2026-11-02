@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Dashboard Base",
-        "description": "Kies een naam voor het menu-item in de zijbalk en de entiteiten die je dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een korte melding dat er nog niets is geüpload.",
+        "description": "Maak een dashboard aan: kies een naam voor het menu-item in de zijbalk en de entiteiten die dit dashboard mag zien en bedienen. Je kunt je HTML-dashboard nu of later uploaden. Zonder upload zie je een korte melding dat er nog niets is geüpload.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
           "html": "HTML-dashboard"
         },
         "data_description": {
-          "entities": "Alleen deze entiteiten zijn zichtbaar voor het dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
+          "entities": "Alleen deze entiteiten zijn zichtbaar voor dit dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
           "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen)."
         }
       }
@@ -18,21 +18,26 @@
     "error": {
       "html_too_large": "Het bestand is groter dan 2 MB.",
       "html_invalid": "Het bestand is geen geldig UTF-8-bestand met HTML."
+    },
+    "abort": {
+      "max_dashboards": "Je kunt maximaal 5 dashboards toevoegen. Verwijder eerst een dashboard om een nieuw toe te voegen."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Dashboard Base",
-        "description": "Wijzig de naam of de toegestane entiteiten. Upload een nieuw HTML-bestand om het huidige dashboard te vervangen, of laat het leeg om het huidige te houden.",
+        "description": "Huidig bestand: {current}\n\nWijzig de naam of de toegestane entiteiten. Upload een nieuw HTML-bestand om het huidige te vervangen, of laat het leeg om het te houden.",
         "data": {
           "title": "Naam in de zijbalk",
           "entities": "Toegestane entiteiten",
-          "html": "HTML-dashboard"
+          "html": "HTML-dashboard",
+          "remove_html": "Huidig HTML-bestand verwijderen"
         },
         "data_description": {
-          "entities": "Alleen deze entiteiten zijn zichtbaar voor het dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
-          "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen)."
+          "entities": "Alleen deze entiteiten zijn zichtbaar voor dit dashboard. Scenes en scripts die je toevoegt kunnen meer doen dan deze lijst.",
+          "html": "Eén los .html-bestand (maximaal 2 MB, zonder externe bronnen).",
+          "remove_html": "Wist het opgeslagen bestand van dit dashboard. Kies je tegelijk een nieuw bestand, dan wordt dat nieuwe bestand bewaard."
         }
       }
     },
