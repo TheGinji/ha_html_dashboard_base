@@ -61,20 +61,23 @@ Binnen het paneel bestaat `window.DashboardBase`:
 ```js
 const entiteiten = await DashboardBase.registry();  // naam, gebied, type
 const standen = await DashboardBase.states();       // huidige standen
+const info = await DashboardBase.info();            // versie en domeinen die je mag bedienen
 const stop = DashboardBase.subscribe((ev) => {      // bij elke wijziging
   console.log(ev.entity_id, ev.state);              // ev.state is null als de entiteit verdwijnt
 });
 await DashboardBase.call("light", "toggle", { entity_id: "light.voorbeeld" });
 ```
 
-Regels voor `call`:
+Lezen is niet beperkt tot bepaalde domeinen: alles wat je aanvinkt (ook sensoren, het weer of de zon) is zichtbaar. De regels hieronder gelden alleen voor `call`:
 
-- Het domein moet in de lijst staan: button, climate, cover, fan, humidifier, input_boolean, input_button, input_number, input_select, light, media_player, number, scene, script, select, switch, vacuum, water_heater.
+- Het domein moet in de lijst staan: button, climate, cover, fan, humidifier, input_boolean, input_button, input_number, input_select, light, media_player, number, scene, script, select, switch, vacuum, water_heater. `info()` geeft die lijst terug als `call_domains`, zodat je hem niet in je bestand hoeft vast te zetten.
 - `entity_id` is verplicht, moet toegestaan zijn en moet bij het domein passen.
 - `device_id`, `area_id`, `floor_id` en `label_id` worden geweigerd, omdat je daarmee de lijst zou omzeilen.
 - De aanroep loopt onder de ingelogde gebruiker.
 
-Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in het bestand zelf zitten (bijvoorbeeld als `data:`-adres).
+Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in het bestand zelf zitten (bijvoorbeeld als `data:`-adres). Een klein lettertype als `data:`-adres past ruim binnen de 2 MB.
+
+`localStorage`, `sessionStorage` en IndexedDB werken niet in het afgeschermde iframe. Bewaar dus geen voorkeuren (zoals een thema) in de pagina zelf, maar kies bij het laden een standaard.
 
 ## Veiligheid
 
@@ -93,9 +96,10 @@ Wat dit niet dekt:
 
 - **Geen paneel in de zijbalk:** herstart Home Assistant na het installeren en controleer of de integratie is toegevoegd.
 - **Pagina met "Nog geen dashboard geüpload":** upload een bestand via Configureren.
-- **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren. Het domein moet in de lijst hierboven staan.
+- **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren. Bedienen kan alleen voor de domeinen die `info()` teruggeeft.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
+- **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Kies bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
 - **Na een update ziet het paneel er nog hetzelfde uit:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
@@ -104,6 +108,7 @@ Wat dit niet dekt:
 - Eén dashboard en één paneel per installatie.
 - Het bestand mag maximaal 2 MB zijn, in UTF-8, en moet uit één HTML-bestand bestaan.
 - Geen externe bronnen in de pagina.
+- Geen `localStorage`, `sessionStorage` of IndexedDB in de pagina.
 - Alleen services van de domeinen hierboven. Sloten, alarmen en dergelijke zitten er bewust niet bij.
 - Het paneel is voor alle gebruikers zichtbaar, niet alleen voor beheerders. De lijst met toegestane entiteiten geldt voor iedereen die het paneel opent.
 
