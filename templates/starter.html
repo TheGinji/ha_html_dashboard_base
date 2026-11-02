@@ -15,6 +15,11 @@
     DashboardBase.call(domain, service, data)   -> service aanroepen, data bevat entity_id
     DashboardBase.info()                        -> {version, call_domains}: wat je mag bedienen
 
+  Bediening in dit sjabloon:
+    tik op een tegel         -> aan/uit, uitvoeren of indrukken
+    lamp die aan staat       -> schuifbalken voor helderheid en kleurtemperatuur (als de lamp dat kan)
+    thermostaat of radiator  -> knoppen voor de gewenste temperatuur
+
   Open je dit bestand los in een browser, dan draait de demo-modus met
   verzonnen gegevens. Binnen het paneel gebruikt het je echte entiteiten.
 -->
@@ -27,15 +32,25 @@ h1{margin:0;font-size:1.3rem}
 h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 #sub{color:var(--muted);font-size:.9rem;text-transform:capitalize}
 #demo{display:none;margin:12px 0 0;padding:8px 12px;border-radius:10px;background:var(--on);font-size:.9rem}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;min-height:76px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card);cursor:pointer}
-.tile:focus-visible{outline:2px solid var(--accent)}
-.tile.ro{cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:start}
+.tile{display:flex;flex-direction:column;gap:10px;min-height:76px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.main{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;flex:1;cursor:pointer}
+.main:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
+.main.ro{cursor:default}
 .tile.on{background:var(--on);border-color:var(--accent)}
 .tile.off .v{color:var(--muted)}
 .tile.bad{opacity:.5}
 .n{font-size:.9rem}
 .v{font-size:1.1rem;font-weight:600}
+.ctl{display:flex;flex-direction:column;gap:8px}
+.ctl[hidden]{display:none}
+.ctl label{display:flex;flex-direction:column;gap:2px;font-size:.8rem;color:var(--muted)}
+.ctl label>span{display:flex;justify-content:space-between}
+.ctl input[type=range]{width:100%;margin:0;accent-color:var(--accent)}
+.step{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.step .t{font-size:.9rem;font-weight:600}
+.step button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--line);border-radius:50%;font-size:1.4rem;cursor:pointer}
+.step button:focus-visible{outline:2px solid var(--accent)}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);padding:8px 14px;border-radius:10px;background:var(--text);color:var(--bg);font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
 </style>
 </head>
@@ -58,12 +73,17 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
   const NL = {
     on: "aan", off: "uit", open: "open", closed: "dicht", playing: "speelt",
     paused: "pauze", idle: "stil", unavailable: "niet beschikbaar",
+    home: "thuis", not_home: "weg",
   };
-  const reg = new Map(), st = new Map(), tiles = new Map();
+  const reg = new Map(), st = new Map(), tiles = new Map(), controls = new Map();
+  const pending = new Map(), timers = new Map();
   const demo = !window.DashboardBase;
   const api = window.DashboardBase || makeDemo();
   let toastTimer;
   let callDomains = null; // null = onbekend: dan mag elke bekende actie
+
+  const dec = (v) => (/^-?\d+(\.\d+)?$/.test(String(v)) ? String(v).replace(".", ",") : String(v));
+  const canCall = (domain) => !callDomains || callDomains.has(domain);
 
   function toast(msg) {
     const t = $("#toast");
@@ -75,15 +95,115 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
 
   function actionFor(domain) {
     const action = ACTION[domain];
-    return action && (!callDomains || callDomains.has(domain)) ? action : null;
+    return action && canCall(domain) ? action : null;
   }
 
   function text(s) {
     const a = s.attributes || {}, d = s.entity_id.split(".")[0];
     if (RUN.has(d) && actionFor(d)) return "Uitvoeren";
-    if (d === "climate" && a.current_temperature != null) return a.current_temperature + "°";
-    if (d === "sensor") return s.state + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
+    if (d === "climate" && a.current_temperature != null) return dec(a.current_temperature) + "°";
+    if (d === "sensor") return dec(s.state) + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
     return NL[s.state] || s.state;
+  }
+
+  function slider(ctl, name, min, max, step, fmt, commit) {
+    const label = document.createElement("label");
+    const head = document.createElement("span");
+    const nm = document.createElement("span");
+    const out = document.createElement("span");
+    nm.textContent = name;
+    head.append(nm, out);
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    const s = { input, out, fmt, busy: false };
+    input.addEventListener("pointerdown", () => (s.busy = true));
+    input.addEventListener("pointercancel", () => (s.busy = false));
+    input.addEventListener("input", () => (out.textContent = fmt(Number(input.value))));
+    input.addEventListener("change", () => {
+      s.busy = false;
+      commit(Number(input.value));
+    });
+    label.append(head, input);
+    ctl.append(label);
+    return s;
+  }
+
+  function setSlider(s, value) {
+    if (s.busy) return; // niet verspringen terwijl je schuift
+    s.input.value = value;
+    s.out.textContent = s.fmt(Number(s.input.value));
+  }
+
+  function nudge(id, dir) {
+    const a = (st.get(id) || {}).attributes || {};
+    const step = a.target_temp_step || 0.5;
+    const lo = a.min_temp != null ? a.min_temp : 5;
+    const hi = a.max_temp != null ? a.max_temp : 30;
+    const base = pending.has(id) ? pending.get(id) : a.temperature;
+    if (base == null) return;
+    const next = Math.min(hi, Math.max(lo, Math.round((base + dir * step) / step) * step));
+    pending.set(id, Math.round(next * 10) / 10);
+    paint(id);
+    clearTimeout(timers.get(id));
+    // pas na een korte pauze versturen, zodat meerdere tikken één opdracht worden
+    timers.set(id, setTimeout(async () => {
+      const value = pending.get(id);
+      await run("climate", "set_temperature", id, { temperature: value });
+      pending.delete(id);
+      paint(id);
+    }, 700));
+  }
+
+  function stepper(id, ctl) {
+    const row = document.createElement("div");
+    row.className = "step";
+    const mk = (label, aria, dir) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.setAttribute("aria-label", aria);
+      b.addEventListener("click", () => nudge(id, dir));
+      return b;
+    };
+    const out = document.createElement("span");
+    out.className = "t";
+    row.append(mk("−", "Temperatuur omlaag", -1), out, mk("+", "Temperatuur omhoog", 1));
+    ctl.append(row);
+    return out;
+  }
+
+  function syncControls(id) {
+    const el = tiles.get(id), s = st.get(id);
+    const ctl = el.querySelector(".ctl");
+    const a = (s && s.attributes) || {}, d = id.split(".")[0];
+    const c = controls.get(id) || {};
+    controls.set(id, c);
+    let show = false;
+    if (d === "light" && s && s.state === "on" && canCall("light")) {
+      const modes = a.supported_color_modes || [];
+      if (modes.some((m) => m !== "onoff")) {
+        show = true;
+        c.bri = c.bri || slider(ctl, "Helderheid", 1, 100, 1, (v) => v + "%",
+          (v) => run("light", "turn_on", id, { brightness_pct: v }));
+        setSlider(c.bri, Math.max(1, Math.round(((a.brightness || 0) / 255) * 100)));
+      }
+      if (modes.includes("color_temp")) {
+        show = true;
+        c.tmp = c.tmp || slider(ctl, "Kleurtemperatuur",
+          a.min_color_temp_kelvin || 2000, a.max_color_temp_kelvin || 6500, 50, (v) => v + " K",
+          (v) => run("light", "turn_on", id, { color_temp_kelvin: v }));
+        if (a.color_temp_kelvin) setSlider(c.tmp, a.color_temp_kelvin);
+      }
+    }
+    if (d === "climate" && s && s.state !== "unavailable" && a.temperature != null && canCall("climate")) {
+      show = true;
+      c.step = c.step || stepper(id, ctl);
+      c.step.textContent = "Doel " + dec(pending.has(id) ? pending.get(id) : a.temperature) + "°";
+    }
+    ctl.hidden = !show;
   }
 
   function paint(id) {
@@ -95,11 +215,12 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     el.classList.toggle("on", !!s && ON.has(s.state));
     el.classList.toggle("off", !!s && !ON.has(s.state));
     el.classList.toggle("bad", !s || s.state === "unavailable");
+    syncControls(id);
   }
 
-  async function run(domain, service, id) {
+  async function run(domain, service, id, extra = {}) {
     try {
-      await api.call(domain, service, { entity_id: id });
+      await api.call(domain, service, { entity_id: id, ...extra });
     } catch (e) {
       toast((e && e.message) || "Mislukt");
     }
@@ -107,10 +228,16 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
 
   function build(id) {
     const domain = id.split(".")[0], action = actionFor(domain);
-    const el = document.createElement(action ? "button" : "div");
-    el.className = action ? "tile" : "tile ro";
-    el.innerHTML = '<span class="n"></span><span class="v"></span>';
-    if (action) el.addEventListener("click", () => run(domain, action, id));
+    const el = document.createElement("div");
+    el.className = "tile";
+    const main = document.createElement(action ? "button" : "div");
+    main.className = action ? "main" : "main ro";
+    main.innerHTML = '<span class="n"></span><span class="v"></span>';
+    if (action) main.addEventListener("click", () => run(domain, action, id));
+    const ctl = document.createElement("div");
+    ctl.className = "ctl";
+    ctl.hidden = true;
+    el.append(main, ctl);
     tiles.set(id, el);
     paint(id);
     return el;
@@ -153,10 +280,21 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
   function makeDemo() {
     const subs = new Set();
     const S = {
-      "light.woonkamer": { state: "on", attributes: {} },
-      "light.keuken": { state: "off", attributes: {} },
+      "light.woonkamer": {
+        state: "on",
+        attributes: {
+          supported_color_modes: ["color_temp"], brightness: 180, color_temp_kelvin: 2700,
+          min_color_temp_kelvin: 2000, max_color_temp_kelvin: 6500,
+        },
+      },
+      "light.keuken": { state: "off", attributes: { supported_color_modes: ["brightness"], brightness: 120 } },
       "cover.rolluik": { state: "open", attributes: {} },
-      "climate.thermostaat": { state: "heat", attributes: { current_temperature: 20.5 } },
+      "climate.thermostaat": {
+        state: "heat",
+        attributes: {
+          current_temperature: 20.5, temperature: 21, min_temp: 5, max_temp: 25, target_temp_step: 0.5,
+        },
+      },
       "switch.tuinverlichting": { state: "off", attributes: {} },
       "sensor.buitentemperatuur": { state: "12.3", attributes: { unit_of_measurement: "°C" } },
       "scene.avond": { state: "unknown", attributes: {} },
@@ -171,10 +309,11 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
       ["scene.avond", "Avondstand", null],
     ].map(([entity_id, name, area]) => ({ entity_id, name, area, domain: entity_id.split(".")[0] }));
     const snap = (id) => ({ entity_id: id, ...S[id] });
+    const emit = (id) => subs.forEach((cb) => cb({ entity_id: id, state: snap(id) }));
     return {
       registry: async () => R,
       states: async () => Object.keys(S).map(snap),
-      info: async () => ({ version: "demo", call_domains: Object.keys(ACTION) }),
+      info: async () => ({ version: "demo", call_domains: Object.keys(ACTION).concat(["climate"]) }),
       subscribe: (cb) => (subs.add(cb), () => subs.delete(cb)),
       call: async (domain, service, data) => {
         const id = data && data.entity_id, s = S[id];
@@ -182,7 +321,15 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
         if (service === "toggle") {
           const [a, b] = domain === "cover" ? ["open", "closed"] : ["on", "off"];
           s.state = s.state === a ? b : a;
-          subs.forEach((cb) => cb({ entity_id: id, state: snap(id) }));
+          emit(id);
+        } else if (domain === "light" && service === "turn_on") {
+          s.state = "on";
+          if (data.brightness_pct != null) s.attributes.brightness = Math.round((data.brightness_pct / 100) * 255);
+          if (data.color_temp_kelvin != null) s.attributes.color_temp_kelvin = data.color_temp_kelvin;
+          emit(id);
+        } else if (domain === "climate" && service === "set_temperature") {
+          s.attributes.temperature = data.temperature;
+          emit(id);
         } else {
           toast("Uitgevoerd (demo)");
         }
