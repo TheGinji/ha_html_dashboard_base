@@ -52,7 +52,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 Wil je nog een dashboard, bijvoorbeeld voor een andere ruimte, herhaal dan deze stappen via Integratie toevoegen. Bij het zesde dashboard stopt het formulier met een melding.
 
-In Configureren van een dashboard (het tandwiel bij dat dashboard) zie je bovenaan welk bestand er nu geladen is: de bestandsnaam, de grootte en de datum. Is de bestandsnaam niet bekend, bijvoorbeeld bij een bestand uit een oudere versie, dan zie je de titel van de pagina. Daar kun je ook de naam en de entiteiten wijzigen, een nieuw bestand kiezen bij Upload HTML-dashboard of het huidige bestand wissen met Verwijder HTML. De gegevens van het huidige bestand blijven zichtbaar na het opslaan.
+In Configureren van een dashboard (het tandwiel bij dat dashboard) zie je onder het veld Upload HTML-dashboard welk bestand er nu geladen is: de bestandsnaam, de grootte en de datum. Is de bestandsnaam niet bekend, bijvoorbeeld bij een bestand uit een oudere versie, dan zie je de titel van de pagina. Daaronder staat het vakje Verwijder HTML om het huidige bestand te wissen. Je kunt er ook de naam en de entiteiten wijzigen en een nieuw bestand kiezen. De gegevens van het huidige bestand blijven zichtbaar na het opslaan.
 
 **Update van 0.1.x:** je bestaande dashboard wordt bij de update automatisch omgezet. Het houdt dezelfde naam, entiteiten, bestand en paneeladres. Terug naar 0.1.x kan daarna niet meer zonder de integratie te verwijderen en opnieuw toe te voegen.
 
