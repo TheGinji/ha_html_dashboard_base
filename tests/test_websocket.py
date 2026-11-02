@@ -23,7 +23,7 @@ async def client(
     html_path,
     mock_entry: MockConfigEntry,
 ):
-    """Een ingelogde websocket-client, met de integratie geladen."""
+    """Een ingelogde websocket-client, met het eerste dashboard geladen."""
     ws = await hass_ws_client(hass)
     hass.config.components.update(("frontend", "panel_custom", "file_upload"))
     hass.http.async_register_static_paths = AsyncMock()
@@ -33,41 +33,56 @@ async def client(
     return ws
 
 
-async def test_states(hass: HomeAssistant, client) -> None:
+async def test_states(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
     """De opdracht is geregistreerd en geeft alleen toegestane standen."""
     hass.states.async_set("light.keuken", "on", {"friendly_name": "Keuken"})
     hass.states.async_set("light.geheim", "on")
 
-    await client.send_json({"id": 1, "type": f"{DOMAIN}/states"})
+    await client.send_json(
+        {"id": 1, "type": f"{DOMAIN}/states", "entry_id": mock_entry.entry_id}
+    )
     msg = await client.receive_json()
 
     assert msg["success"]
     assert [row["entity_id"] for row in msg["result"]] == ["light.keuken"]
 
 
-async def test_registry(hass: HomeAssistant, client) -> None:
-    await client.send_json({"id": 1, "type": f"{DOMAIN}/registry"})
+async def test_registry(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
+    await client.send_json(
+        {"id": 1, "type": f"{DOMAIN}/registry", "entry_id": mock_entry.entry_id}
+    )
     msg = await client.receive_json()
 
     assert msg["success"]
     assert len(msg["result"]) == 4
 
 
-async def test_get_html(hass: HomeAssistant, client) -> None:
-    await client.send_json({"id": 1, "type": f"{DOMAIN}/get_html"})
+async def test_get_html(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
+    await client.send_json(
+        {"id": 1, "type": f"{DOMAIN}/get_html", "entry_id": mock_entry.entry_id}
+    )
     msg = await client.receive_json()
 
     assert msg["success"]
     assert "Nog geen dashboard" in msg["result"]["html"]
 
 
-async def test_call_allowed(hass: HomeAssistant, client) -> None:
+async def test_call_allowed(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
     calls = async_mock_service(hass, "light", "turn_on")
 
     await client.send_json(
         {
             "id": 1,
             "type": f"{DOMAIN}/call",
+            "entry_id": mock_entry.entry_id,
             "domain": "light",
             "service": "turn_on",
             "data": {"entity_id": "light.keuken"},
@@ -81,13 +96,16 @@ async def test_call_allowed(hass: HomeAssistant, client) -> None:
     assert calls[0].context.user_id is not None
 
 
-async def test_call_blocked(hass: HomeAssistant, client) -> None:
+async def test_call_blocked(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
     calls = async_mock_service(hass, "light", "turn_on")
 
     await client.send_json(
         {
             "id": 1,
             "type": f"{DOMAIN}/call",
+            "entry_id": mock_entry.entry_id,
             "domain": "light",
             "service": "turn_on",
             "data": {"entity_id": "light.geheim"},
@@ -100,10 +118,17 @@ async def test_call_blocked(hass: HomeAssistant, client) -> None:
     assert calls == []
 
 
-async def test_call_invalid_format(hass: HomeAssistant, client) -> None:
+async def test_call_invalid_format(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
     """Een opdracht zonder verplichte velden wordt door het schema geweigerd."""
     await client.send_json(
-        {"id": 1, "type": f"{DOMAIN}/call", "service": "turn_on"}
+        {
+            "id": 1,
+            "type": f"{DOMAIN}/call",
+            "entry_id": mock_entry.entry_id,
+            "service": "turn_on",
+        }
     )
     msg = await client.receive_json()
 
@@ -111,11 +136,24 @@ async def test_call_invalid_format(hass: HomeAssistant, client) -> None:
     assert msg["error"]["code"] == "invalid_format"
 
 
-async def test_subscribe(hass: HomeAssistant, client) -> None:
+async def test_states_without_entry_id(hass: HomeAssistant, client) -> None:
+    """Zonder dashboard-id weigert het schema de opdracht."""
+    await client.send_json({"id": 1, "type": f"{DOMAIN}/states"})
+    msg = await client.receive_json()
+
+    assert not msg["success"]
+    assert msg["error"]["code"] == "invalid_format"
+
+
+async def test_subscribe(
+    hass: HomeAssistant, client, mock_entry: MockConfigEntry
+) -> None:
     """Een wijziging van een toegestane entiteit komt als event binnen."""
     hass.states.async_set("light.keuken", "on")
 
-    await client.send_json({"id": 1, "type": f"{DOMAIN}/subscribe"})
+    await client.send_json(
+        {"id": 1, "type": f"{DOMAIN}/subscribe", "entry_id": mock_entry.entry_id}
+    )
     msg = await client.receive_json()
     assert msg["success"]
 
@@ -126,3 +164,40 @@ async def test_subscribe(hass: HomeAssistant, client) -> None:
     assert msg["type"] == "event"
     assert msg["event"]["entity_id"] == "light.keuken"
     assert msg["event"]["state"]["state"] == "off"
+
+
+async def test_second_dashboard_over_websocket(
+    hass: HomeAssistant,
+    client,
+    mock_entry: MockConfigEntry,
+    second_mock_entry: MockConfigEntry,
+) -> None:
+    """Twee dashboards naast elkaar: elk met zijn eigen lijst, ook via de verbinding."""
+    second_mock_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(second_mock_entry.entry_id)
+    await hass.async_block_till_done()
+    calls = async_mock_service(hass, "light", "turn_on")
+    hass.states.async_set("light.keuken", "on")
+    hass.states.async_set("light.tuinhuis", "on")
+
+    await client.send_json(
+        {"id": 1, "type": f"{DOMAIN}/states", "entry_id": second_mock_entry.entry_id}
+    )
+    msg = await client.receive_json()
+    assert [row["entity_id"] for row in msg["result"]] == ["light.tuinhuis"]
+
+    await client.send_json(
+        {
+            "id": 2,
+            "type": f"{DOMAIN}/call",
+            "entry_id": mock_entry.entry_id,
+            "domain": "light",
+            "service": "turn_on",
+            "data": {"entity_id": "light.tuinhuis"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert not msg["success"]
+    assert msg["error"]["code"] == "not_allowed"
+    assert calls == []

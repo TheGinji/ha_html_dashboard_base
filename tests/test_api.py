@@ -32,8 +32,9 @@ def make_connection() -> MagicMock:
     return connection
 
 
-def msg(command: str, **extra: Any) -> dict[str, Any]:
-    return {"id": 1, "type": f"{DOMAIN}/{command}", **extra}
+def msg(command: str, entry: MockConfigEntry | str, **extra: Any) -> dict[str, Any]:
+    entry_id = entry if isinstance(entry, str) else entry.entry_id
+    return {"id": 1, "type": f"{DOMAIN}/{command}", "entry_id": entry_id, **extra}
 
 
 async def test_registry(hass: HomeAssistant, setup_entry: MockConfigEntry) -> None:
@@ -70,7 +71,7 @@ async def test_registry(hass: HomeAssistant, setup_entry: MockConfigEntry) -> No
     hass.states.async_set("light.geheim", "on")
 
     connection = make_connection()
-    api.ws_registry(hass, connection, msg("registry"))
+    api.ws_registry(hass, connection, msg("registry", setup_entry))
 
     connection.send_result.assert_called_once()
     rows = {row["entity_id"]: row for row in connection.send_result.call_args.args[1]}
@@ -104,7 +105,7 @@ async def test_states_only_allowed(
     hass.states.async_set("light.geheim", "on")
 
     connection = make_connection()
-    api.ws_states(hass, connection, msg("states"))
+    api.ws_states(hass, connection, msg("states", setup_entry))
 
     result = connection.send_result.call_args.args[1]
     assert [row["entity_id"] for row in result] == ["light.keuken"]
@@ -118,7 +119,7 @@ async def test_subscribe_forwards_allowed_changes(
     """Wijzigingen van toegestane entiteiten gaan door, andere niet."""
     hass.states.async_set("light.keuken", "on")
     connection = make_connection()
-    api.ws_subscribe(hass, connection, msg("subscribe"))
+    api.ws_subscribe(hass, connection, msg("subscribe", setup_entry))
     connection.send_result.assert_called_once_with(1)
 
     hass.states.async_set("light.keuken", "off")
@@ -142,7 +143,7 @@ async def test_get_html_placeholder(
 ) -> None:
     """Zonder upload komt er een korte melding."""
     connection = make_connection()
-    api.ws_get_html(hass, connection, msg("get_html"))
+    api.ws_get_html(hass, connection, msg("get_html", setup_entry))
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert "Nog geen dashboard" in connection.send_result.call_args.args[1]["html"]
@@ -155,7 +156,7 @@ async def test_get_html_uploaded(
     await write_file(hass, html_path, "<html>mijn dashboard</html>")
 
     connection = make_connection()
-    api.ws_get_html(hass, connection, msg("get_html"))
+    api.ws_get_html(hass, connection, msg("get_html", setup_entry))
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert connection.send_result.call_args.args[1] == {
@@ -163,14 +164,30 @@ async def test_get_html_uploaded(
     }
 
 
-async def test_get_html_not_loaded(hass: HomeAssistant) -> None:
-    """Zonder geladen instelling geeft de koppeling een fout."""
-    connection = make_connection()
-    api.ws_get_html(hass, connection, msg("get_html"))
+async def test_unknown_entry(hass: HomeAssistant, setup_entry: MockConfigEntry) -> None:
+    """Een onbekend dashboard krijgt niets te zien en niets te bedienen."""
+    states = make_connection()
+    html = make_connection()
+    call = make_connection()
+
+    api.ws_states(hass, states, msg("states", "bestaat-niet"))
+    api.ws_get_html(hass, html, msg("get_html", "bestaat-niet"))
+    api.ws_call(
+        hass,
+        call,
+        msg(
+            "call",
+            "bestaat-niet",
+            domain="light",
+            service="turn_on",
+            data={"entity_id": "light.keuken"},
+        ),
+    )
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    connection.send_error.assert_called_once()
-    assert connection.send_error.call_args.args[1] == "not_loaded"
+    states.send_result.assert_called_once_with(1, [])
+    assert html.send_error.call_args.args[1] == "not_loaded"
+    assert call.send_error.call_args.args[1] == "not_allowed"
 
 
 async def test_call_allowed(hass: HomeAssistant, setup_entry: MockConfigEntry) -> None:
@@ -183,6 +200,7 @@ async def test_call_allowed(hass: HomeAssistant, setup_entry: MockConfigEntry) -
         connection,
         msg(
             "call",
+            setup_entry,
             domain="light",
             service="turn_on",
             data={"entity_id": "light.keuken", "brightness": 100},
@@ -208,6 +226,7 @@ async def test_call_allowed_list(
         connection,
         msg(
             "call",
+            setup_entry,
             domain="switch",
             service="turn_off",
             data={"entity_id": ["switch.tuin"]},
@@ -260,7 +279,9 @@ async def test_call_blocked(
 
     connection = make_connection()
     api.ws_call(
-        hass, connection, msg("call", domain=domain, service=service, data=data)
+        hass,
+        connection,
+        msg("call", setup_entry, domain=domain, service=service, data=data),
     )
     await hass.async_block_till_done(wait_background_tasks=True)
 
@@ -268,3 +289,95 @@ async def test_call_blocked(
     assert connection.send_error.call_args.args[1] == "not_allowed"
     connection.send_result.assert_not_called()
     assert calls == []
+
+
+async def test_dashboards_see_only_their_own_entities(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, second_entry: MockConfigEntry
+) -> None:
+    """Elk dashboard leest alleen de entiteiten uit zijn eigen lijst."""
+    hass.states.async_set("light.keuken", "on")
+    hass.states.async_set("light.tuinhuis", "on")
+
+    first = make_connection()
+    second = make_connection()
+    api.ws_states(hass, first, msg("states", setup_entry))
+    api.ws_states(hass, second, msg("states", second_entry))
+
+    first_ids = [row["entity_id"] for row in first.send_result.call_args.args[1]]
+    second_ids = [row["entity_id"] for row in second.send_result.call_args.args[1]]
+    assert first_ids == ["light.keuken"]
+    assert second_ids == ["light.tuinhuis"]
+
+
+async def test_dashboards_cannot_control_each_others_entities(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, second_entry: MockConfigEntry
+) -> None:
+    """Een dashboard kan niets bedienen dat alleen in de lijst van een ander staat."""
+    calls = async_mock_service(hass, "light", "turn_on")
+
+    first = make_connection()
+    api.ws_call(
+        hass,
+        first,
+        msg(
+            "call",
+            setup_entry,
+            domain="light",
+            service="turn_on",
+            data={"entity_id": "light.tuinhuis"},
+        ),
+    )
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert first.send_error.call_args.args[1] == "not_allowed"
+    assert calls == []
+
+    second = make_connection()
+    api.ws_call(
+        hass,
+        second,
+        msg(
+            "call",
+            second_entry,
+            domain="light",
+            service="turn_on",
+            data={"entity_id": "light.tuinhuis"},
+        ),
+    )
+    await hass.async_block_till_done(wait_background_tasks=True)
+    second.send_result.assert_called_once_with(1)
+    assert len(calls) == 1
+
+
+async def test_dashboards_get_only_their_own_events(
+    hass: HomeAssistant, setup_entry: MockConfigEntry, second_entry: MockConfigEntry
+) -> None:
+    """Wijzigingen van een entiteit uit de lijst van een ander komen niet binnen."""
+    connection = make_connection()
+    api.ws_subscribe(hass, connection, msg("subscribe", setup_entry))
+
+    hass.states.async_set("light.tuinhuis", "on")
+    hass.states.async_set("light.keuken", "on")
+    await hass.async_block_till_done()
+
+    events = [call.args[0]["event"] for call in connection.send_message.call_args_list]
+    assert [event["entity_id"] for event in events] == ["light.keuken"]
+
+
+async def test_dashboards_have_their_own_file(
+    hass: HomeAssistant,
+    setup_entry: MockConfigEntry,
+    second_entry: MockConfigEntry,
+    html_path: Path,
+) -> None:
+    """Elk dashboard laadt zijn eigen bestand."""
+    await write_file(hass, html_path, "<html>een</html>")
+    await write_file(hass, html_path.parent / "technisch.html", "<html>twee</html>")
+
+    first = make_connection()
+    second = make_connection()
+    api.ws_get_html(hass, first, msg("get_html", setup_entry))
+    api.ws_get_html(hass, second, msg("get_html", second_entry))
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert first.send_result.call_args.args[1] == {"html": "<html>een</html>"}
+    assert second.send_result.call_args.args[1] == {"html": "<html>twee</html>"}
