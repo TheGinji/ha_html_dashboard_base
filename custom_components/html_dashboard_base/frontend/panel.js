@@ -37,6 +37,7 @@ class DashboardBasePanel extends HTMLElement {
       )
     );
     this._onMessage = (e) => this._handle(e);
+    this._onResize = () => this._fit();
   }
 
   set hass(hass) {
@@ -51,12 +52,25 @@ class DashboardBasePanel extends HTMLElement {
   connectedCallback() {
     this._failed = false;
     window.addEventListener("message", this._onMessage);
+    window.addEventListener("resize", this._onResize);
+    requestAnimationFrame(() => this._fit());
+    this._fitTimer = setTimeout(() => this._fit(), 400);
     this._maybeStart();
   }
 
   disconnectedCallback() {
     window.removeEventListener("message", this._onMessage);
+    window.removeEventListener("resize", this._onResize);
+    clearTimeout(this._fitTimer);
     this._stop();
+  }
+
+  // Het paneel begint soms onder een rand van Home Assistant zelf (bijvoorbeeld de
+  // statusbalk van een telefoon). Dan is 100% van het scherm te hoog en valt de
+  // onderkant buiten beeld. Daarom: schermhoogte min de plek waar het paneel begint.
+  _fit() {
+    const top = Math.max(0, this.getBoundingClientRect().top);
+    this.style.height = `${Math.max(0, Math.round(window.innerHeight - top))}px`;
   }
 
   _maybeStart() {
