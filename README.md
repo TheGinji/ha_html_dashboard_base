@@ -52,6 +52,8 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 Een algemeen sjabloon met demo-modus staat in [`templates/starter.html`](templates/starter.html). Download het en upload het als eerste dashboard. Open je het los in een browser, dan draait het met verzonnen gegevens.
 
+Het sjabloon toont tegels per gebied. Een tik op een tegel schakelt, voert uit of drukt in. Een lamp die aanstaat krijgt een schuifbalk voor helderheid en, als de lamp dat kan, voor kleurtemperatuur. Een thermostaat of radiator krijgt knoppen voor de gewenste temperatuur. Het gebruikt alleen `registry()`, `states()`, `subscribe()`, `info()` en `call()`, dus je kunt het als voorbeeld voor je eigen bestand gebruiken.
+
 De integratie maakt zelf geen entiteiten aan.
 
 ## Je eigen dashboard maken

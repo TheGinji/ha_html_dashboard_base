@@ -30,7 +30,8 @@
 body{margin:0;padding:16px 16px 40px;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
 h1{margin:0;font-size:1.3rem}
 h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-#sub{color:var(--muted);font-size:.9rem;text-transform:capitalize}
+#sub{color:var(--muted);font-size:.9rem}
+#sub::first-letter{text-transform:uppercase}
 #demo{display:none;margin:12px 0 0;padding:8px 12px;border-radius:10px;background:var(--on);font-size:.9rem}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:start}
 .tile{display:flex;flex-direction:column;gap:10px;min-height:76px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
