@@ -48,11 +48,11 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 1. Ga naar Instellingen, Apparaten en diensten, Integratie toevoegen en kies Dashboard Base.
 2. Kies een naam voor de zijbalk en de entiteiten die dit dashboard mag zien en bedienen.
-3. Upload je HTML-bestand. Dat kan ook later, via Configureren. Zonder bestand zie je een korte melding dat er nog niets is geüpload.
+3. Kies bij Upload HTML-dashboard je bestand. Dat kan ook later, via Configureren. Zonder bestand toont het dashboard een melding die uitlegt waar je een bestand uploadt.
 
 Wil je nog een dashboard, bijvoorbeeld voor een andere ruimte, herhaal dan deze stappen via Integratie toevoegen. Bij het zesde dashboard stopt het formulier met een melding.
 
-In Configureren van een dashboard zie je bovenaan welk bestand er nu geladen is: de titel van de pagina, de grootte en de datum van het bestand. Daar kun je ook de naam en de entiteiten wijzigen, een nieuw bestand uploaden of het huidige bestand verwijderen. Home Assistant geeft de oorspronkelijke bestandsnaam niet door, dus die kan ik niet tonen.
+In Configureren van een dashboard (het tandwiel bij dat dashboard) zie je bovenaan welk bestand er nu geladen is: de bestandsnaam, de grootte en de datum. Is de bestandsnaam niet bekend, bijvoorbeeld bij een bestand uit een oudere versie, dan zie je de titel van de pagina. Daar kun je ook de naam en de entiteiten wijzigen, een nieuw bestand kiezen bij Upload HTML-dashboard of het huidige bestand wissen met Verwijder HTML. De gegevens van het huidige bestand blijven zichtbaar na het opslaan.
 
 **Update van 0.1.x:** je bestaande dashboard wordt bij de update automatisch omgezet. Het houdt dezelfde naam, entiteiten, bestand en paneeladres. Terug naar 0.1.x kan daarna niet meer zonder de integratie te verwijderen en opnieuw toe te voegen.
 
@@ -106,13 +106,14 @@ Wat dit niet dekt:
 ## Problemen oplossen
 
 - **Geen paneel in de zijbalk:** herstart Home Assistant na het installeren en controleer of de integratie is toegevoegd.
-- **Pagina met "Nog geen dashboard geüpload":** upload een bestand via Configureren van dat dashboard.
+- **Het dashboard toont een melding dat er nog geen HTML-bestand is:** upload een bestand via het tandwiel van dat dashboard, bij Upload HTML-dashboard.
+- **Het paneel toont een melding over `entry_id`:** je app of browser gebruikt nog een oud paneelbestand uit de cache. Sluit de Home Assistant-app helemaal en open hem opnieuw, of ververs de pagina. Met één dashboard werkt een oud paneelbestand ook zonder die stap. Met meer dan één dashboard niet.
 - **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren van dat dashboard. Bedienen kan alleen voor de domeinen die `info()` teruggeeft.
 - **Ik kan geen dashboard meer toevoegen:** er zijn maximaal vijf. Verwijder er eerst een.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
 - **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Kies bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
-- **Na een update ziet het paneel er nog hetzelfde uit:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
+- **Na een update ziet het paneel er nog hetzelfde uit, of staan er oude teksten in het formulier:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand en de nieuwe vertalingen worden geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
 ## Beperkingen
