@@ -58,7 +58,7 @@ In Configureren van een dashboard (het tandwiel bij dat dashboard) zie je onder 
 
 Een algemeen sjabloon met demo-modus staat in [`templates/starter.html`](templates/starter.html). Download het en upload het als eerste dashboard. Open je het los in een browser, dan draait het met verzonnen gegevens.
 
-Het sjabloon toont tegels per gebied. Een tik op een tegel schakelt, voert uit of drukt in. Een lamp die aanstaat krijgt een schuifbalk voor helderheid en, als de lamp dat kan, voor kleurtemperatuur. Een thermostaat of radiator krijgt knoppen voor de gewenste temperatuur. Het gebruikt alleen `registry()`, `states()`, `subscribe()`, `info()` en `call()`, dus je kunt het als voorbeeld voor je eigen bestand gebruiken.
+Het sjabloon toont tegels per gebied. Een tik op een tegel schakelt, voert uit of drukt in. Een lamp die aanstaat krijgt een schuifbalk voor helderheid en, als de lamp dat kan, voor kleurtemperatuur. Een thermostaat of radiator krijgt knoppen voor de gewenste temperatuur. Bovenaan staat een grafiek van de temperatuursensoren (de laatste 24 uur) en de weersverwachting, als je die in de lijst hebt gezet en Dashboard Base 0.3.0 of nieuwer draait. Het gebruikt `registry()`, `states()`, `subscribe()`, `info()`, `call()`, `history()` en `forecast()`, dus je kunt het als voorbeeld voor je eigen bestand gebruiken.
 
 De integratie maakt zelf geen entiteiten aan.
 
