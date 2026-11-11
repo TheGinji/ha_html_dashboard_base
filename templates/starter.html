@@ -14,11 +14,15 @@
     DashboardBase.subscribe(cb)                 -> cb({entity_id, state}) bij elke wijziging
     DashboardBase.call(domain, service, data)   -> service aanroepen, data bevat entity_id
     DashboardBase.info()                        -> {version, call_domains}: wat je mag bedienen
+    DashboardBase.history(reeksen, uren)        -> geschiedenis voor grafieken (vanaf versie 0.3.0)
+    DashboardBase.forecast(entity_id, type)     -> weersverwachting (vanaf versie 0.3.0)
 
   Bediening in dit sjabloon:
     tik op een tegel         -> aan/uit, uitvoeren of indrukken
     lamp die aan staat       -> schuifbalken voor helderheid en kleurtemperatuur (als de lamp dat kan)
     thermostaat of radiator  -> knoppen voor de gewenste temperatuur
+    bovenaan                 -> grafiek van de temperatuursensoren (24 uur) en de weersverwachting,
+                                alleen als die er zijn en Dashboard Base 0.3.0 of nieuwer draait
 
   Open je dit bestand los in een browser, dan draait de demo-modus met
   verzonnen gegevens. Binnen het paneel gebruikt het je echte entiteiten.
@@ -52,6 +56,14 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
 .step .t{font-size:.9rem;font-weight:600}
 .step button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--line);border-radius:50%;font-size:1.4rem;cursor:pointer}
 .step button:focus-visible{outline:2px solid var(--accent)}
+#charts{margin-top:16px}
+#charts[hidden]{display:none}
+.wide{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart text{fill:var(--muted);font:500 10px system-ui,-apple-system,"Segoe UI",sans-serif}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.lg{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.8rem}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);padding:8px 14px;border-radius:10px;background:var(--text);color:var(--bg);font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
 </style>
 </head>
@@ -75,6 +87,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     on: "aan", off: "uit", open: "open", closed: "dicht", playing: "speelt",
     paused: "pauze", idle: "stil", unavailable: "niet beschikbaar",
     home: "thuis", not_home: "weg",
+    cloudy: "bewolkt", sunny: "zonnig", rainy: "regen", partlycloudy: "half bewolkt",
   };
   const reg = new Map(), st = new Map(), tiles = new Map(), controls = new Map();
   const pending = new Map(), timers = new Map();
@@ -82,6 +95,7 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
   const api = window.DashboardBase || makeDemo();
   let toastTimer;
   let callDomains = null; // null = onbekend: dan mag elke bekende actie
+  let chartTimer;
 
   const dec = (v) => (/^-?\d+(\.\d+)?$/.test(String(v)) ? String(v).replace(".", ",") : String(v));
   const canCall = (domain) => !callDomains || callDomains.has(domain);
@@ -244,6 +258,93 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
     return el;
   }
 
+  // ===== Grafieken (vanaf Dashboard Base 0.3.0) =====
+  // history() en forecast() bestaan pas in een nieuwe versie van Dashboard Base. Ontbreken ze, of geeft
+  // Home Assistant geen gegevens, dan blijven de grafieken gewoon weg. Een punt zonder waarde (null)
+  // onderbreekt de lijn: er wordt niets verbonden of verzonnen.
+  const COLORS = ["var(--accent)", "#c9822b", "#4a7fa8", "#a05a8f"];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const num = (v) => Number(v).toLocaleString("nl-NL", { maximumFractionDigits: 1 });
+  const tick = (t, day) => day
+    ? new Date(t).toLocaleDateString("nl-NL", { weekday: "short" })
+    : new Date(t).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+
+  function lineChart(lines, day) {
+    const W = 320, H = 150, L = 36, R = 10, T = 10, B = 22, iw = W - L - R, ih = H - T - B;
+    const all = lines.flatMap((l) => l.points), vals = all.map((p) => p[1]).filter((v) => v != null);
+    if (!vals.length) return "";
+    const t0 = Math.min(...all.map((p) => p[0])), t1 = Math.max(...all.map((p) => p[0]));
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+    const pad = (hi - lo) * 0.12;
+    lo = Math.floor((lo - pad) * 2) / 2;
+    hi = Math.ceil((hi + pad) * 2) / 2;
+    const X = (t) => L + (t1 === t0 ? 0 : ((t - t0) / (t1 - t0)) * iw);
+    const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * ih;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafiek">`;
+    [lo, (lo + hi) / 2, hi].forEach((v) => {
+      const y = Y(v).toFixed(1);
+      svg += `<line class="gl" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/>` +
+        `<text x="${L - 5}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${num(v)}</text>`;
+    });
+    for (let i = 0; i <= 4; i++) {
+      const t = t0 + ((t1 - t0) * i) / 4;
+      svg += `<text x="${X(t).toFixed(1)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${tick(t, day)}</text>`;
+    }
+    lines.forEach((l) => {
+      let d = "", pen = false, last = null;
+      l.points.forEach((p) => {
+        if (p[1] == null) { pen = false; return; }
+        d += (pen ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1);
+        pen = true;
+        last = p;
+      });
+      if (d) svg += `<path d="${d}" fill="none" style="stroke:${l.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+      if (last) svg += `<circle cx="${X(last[0]).toFixed(1)}" cy="${Y(last[1]).toFixed(1)}" r="3" style="fill:${l.color}"/>`;
+    });
+    return svg + "</svg>";
+  }
+
+  function chartCard(title, lines, day) {
+    const svg = lineChart(lines, day);
+    if (!svg) return null;
+    const el = document.createElement("div");
+    el.className = "tile chart";
+    const legend = lines.length < 2 ? "" :
+      `<div class="lg">${lines.map((l) => `<span><i style="background:${l.color}"></i>${esc(l.name)}</span>`).join("")}</div>`;
+    el.innerHTML = `<span class="n">${esc(title)}</span>${svg}${legend}`;
+    return el;
+  }
+
+  async function loadCharts(box) {
+    const cards = [];
+    const sensors = [...reg.values()]
+      .filter((r) => r.domain === "sensor" && r.device_class === "temperature").slice(0, 4);
+    if (typeof api.history === "function" && sensors.length) {
+      try {
+        const res = await api.history(sensors.map((r) => ({ entity_id: r.entity_id })), 24);
+        const lines = res.map((x, i) => ({
+          name: reg.get(x.entity_id).name, color: COLORS[i % COLORS.length], points: x.points,
+        }));
+        cards.push(chartCard("Temperatuur · afgelopen 24 uur", lines, false));
+      } catch (e) { /* geen recorder of geen gegevens: dan geen grafiek */ }
+    }
+    const weather = [...reg.values()].find((r) => r.domain === "weather");
+    if (weather && typeof api.forecast === "function") {
+      try {
+        const f = await api.forecast(weather.entity_id);
+        const hourly = f.type === "hourly";
+        const lines = [{ name: hourly ? "Temperatuur" : "Hoogste", color: COLORS[1], points: f.points.map((p) => [p[0], p[1]]) }];
+        if (f.points.some((p) => p[2] != null)) {
+          lines.push({ name: "Laagste", color: COLORS[0], points: f.points.map((p) => [p[0], p[2]]) });
+        }
+        cards.push(chartCard(hourly ? "Buiten · komende 24 uur" : "Buiten · komende dagen", lines, !hourly));
+      } catch (e) { /* geen weerentiteit of geen verwachting: dan geen grafiek */ }
+    }
+    box.replaceChildren(...cards.filter(Boolean));
+    box.hidden = !box.children.length;
+  }
+
   function render() {
     const root = $("#root");
     root.textContent = "";
@@ -252,6 +353,14 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
         "Geen entiteiten toegestaan. Kies ze via Instellingen, Apparaten en diensten, Dashboard Base, Configureren.";
       return;
     }
+    const charts = document.createElement("div");
+    charts.id = "charts";
+    charts.className = "grid wide";
+    charts.hidden = true;
+    root.append(charts);
+    loadCharts(charts);
+    clearInterval(chartTimer);
+    chartTimer = setInterval(() => loadCharts(charts), 600000); // elke 10 minuten verversen
     const groups = new Map();
     for (const r of reg.values()) {
       const area = r.area || "Overig";
@@ -298,6 +407,8 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
       },
       "switch.tuinverlichting": { state: "off", attributes: {} },
       "sensor.buitentemperatuur": { state: "12.3", attributes: { unit_of_measurement: "°C" } },
+      "sensor.woonkamer_temperatuur": { state: "21.2", attributes: { unit_of_measurement: "°C" } },
+      "weather.thuis": { state: "cloudy", attributes: { temperature: 12 } },
       "scene.avond": { state: "unknown", attributes: {} },
     };
     const R = [
@@ -306,9 +417,14 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
       ["cover.rolluik", "Rolluik", "Beneden"],
       ["climate.thermostaat", "Thermostaat", "Beneden"],
       ["switch.tuinverlichting", "Tuinverlichting", "Buiten"],
-      ["sensor.buitentemperatuur", "Buiten", "Buiten"],
+      ["sensor.buitentemperatuur", "Buiten", "Buiten", "temperature"],
+      ["sensor.woonkamer_temperatuur", "Woonkamer temperatuur", "Beneden", "temperature"],
+      ["weather.thuis", "Weer", "Buiten"],
       ["scene.avond", "Avondstand", null],
-    ].map(([entity_id, name, area]) => ({ entity_id, name, area, domain: entity_id.split(".")[0] }));
+    ].map(([entity_id, name, area, device_class]) => ({
+      entity_id, name, area, domain: entity_id.split(".")[0], device_class: device_class || null,
+    }));
+    const wave = (n, ms, fn) => Array.from({ length: n }, (_, i) => [Date.now() - (n - 1 - i) * ms, fn(i / n)]);
     const snap = (id) => ({ entity_id: id, ...S[id] });
     const emit = (id) => subs.forEach((cb) => cb({ entity_id: id, state: snap(id) }));
     return {
@@ -316,6 +432,16 @@ h2{margin:24px 0 8px;font-size:.8rem;letter-spacing:.06em;text-transform:upperca
       states: async () => Object.keys(S).map(snap),
       info: async () => ({ version: "demo", call_domains: Object.keys(ACTION).concat(["climate"]) }),
       subscribe: (cb) => (subs.add(cb), () => subs.delete(cb)),
+      history: async (series, hours) => series.map((s, k) => ({
+        entity_id: s.entity_id, attribute: s.attribute || null,
+        points: wave(144, ((hours || 24) * 36e5) / 144,
+          (f) => Math.round((Number(S[s.entity_id].state) + Math.sin(f * 6.28 - k * 1.5) * 2) * 100) / 100),
+      })),
+      forecast: async () => ({
+        type: "hourly",
+        points: Array.from({ length: 25 }, (_, i) =>
+          [Date.now() + (i - 0.5) * 36e5, Math.round((10 + 4 * Math.sin((i - 3) / 24 * 6.28)) * 10) / 10, null]),
+      }),
       call: async (domain, service, data) => {
         const id = data && data.entity_id, s = S[id];
         if (!s) throw new Error("Onbekende entiteit");
