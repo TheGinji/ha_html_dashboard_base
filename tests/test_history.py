@@ -219,7 +219,8 @@ async def test_history_for_an_unknown_dashboard_is_refused(
 async def test_history_without_recorder(
     hass: HomeAssistant, weather_entry: MockConfigEntry
 ) -> None:
-    hass.config.components.discard("recorder")
+    if "recorder" in hass.config.components:
+        hass.config.components.remove("recorder")
     fetch = AsyncMock(return_value={})
     connection = make_connection()
 
