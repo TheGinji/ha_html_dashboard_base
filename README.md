@@ -12,7 +12,7 @@ Draai je eigen HTML-dashboards als panelen in de zijbalk van Home Assistant, met
 
 ## In het kort (English)
 
-Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. Early version, so far only tried on a single installation. The documentation below is in Dutch.
+Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities. Early version, so far only tried on a single installation. The documentation below is in Dutch.
 
 ## Is dit voor jou?
 
@@ -31,7 +31,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 - Elk dashboard is een eigen instelling van de integratie, met een eigen naam, een eigen `.html`-bestand en een eigen lijst met toegestane entiteiten. Je kunt er maximaal vijf maken.
 - Elk dashboard krijgt een eigen paneel in de zijbalk. Het paneel toont het bestand in een afgeschermd iframe.
-- De pagina krijgt `window.DashboardBase` om standen te lezen en services aan te roepen.
+- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen en services aan te roepen.
 - Alleen de entiteiten die je bij dat dashboard aanvinkt zijn zichtbaar en bedienbaar. Een dashboard kan niet bij de lijst van een ander dashboard. Die controle gebeurt in Home Assistant zelf, niet alleen in de pagina.
 
 ## Installatie
@@ -74,6 +74,10 @@ const stop = DashboardBase.subscribe((ev) => {      // bij elke wijziging
   console.log(ev.entity_id, ev.state);              // ev.state is null als de entiteit verdwijnt
 });
 await DashboardBase.call("light", "toggle", { entity_id: "light.voorbeeld" });
+
+// Voor grafieken (zie hieronder):
+const lijnen = await DashboardBase.history([{ entity_id: "sensor.voorbeeld" }], 24);
+const verwachting = await DashboardBase.forecast("weather.voorbeeld");
 ```
 
 Elke functie werkt voor het dashboard waarin je pagina draait. Je geeft zelf geen dashboard door.
@@ -85,6 +89,27 @@ Lezen is niet beperkt tot bepaalde domeinen: alles wat je aanvinkt (ook sensoren
 - `device_id`, `area_id`, `floor_id` en `label_id` worden geweigerd, omdat je daarmee de lijst zou omzeilen.
 - De aanroep loopt onder de ingelogde gebruiker.
 
+### Geschiedenis en verwachting
+
+Beide functies lezen alleen en werken alleen voor entiteiten in de lijst van dat dashboard. Een entiteit daarbuiten geeft de fout `not_allowed`.
+
+`history(reeksen, uren)` geeft de geschiedenis uit de recorder van Home Assistant:
+
+- `reeksen` is een lijst met `{ entity_id, attribute }`, maximaal 8. Met `attribute` krijg je de lijn van een kenmerk, bijvoorbeeld `current_temperature` (gemeten) en `temperature` (gewenst) van een thermostaat. Zonder `attribute` krijg je de stand zelf, zoals de waarde van een sensor.
+- `uren` is 1 tot en met 168, standaard 24.
+- Het antwoord is per reeks `{ entity_id, attribute, points }`, in dezelfde volgorde als je vraag. `points` is een lijst van `[tijd in milliseconden, waarde]`, maximaal 144 per reeks.
+- Een waarde van `null` betekent dat er in dat stuk geen bruikbare meting was, bijvoorbeeld omdat de sensor niet beschikbaar was. Teken daar geen lijn doorheen. Een lege lijst betekent dat er helemaal geen gegevens zijn, bijvoorbeeld omdat de entiteit niet wordt vastgelegd.
+- Heeft Home Assistant geen recorder, dan komt de fout `no_recorder`.
+
+`forecast(entity_id, type)` geeft de weersverwachting van een weerentiteit:
+
+- `type` is `hourly`, `daily` of `twice_daily`. Laat je het weg, dan wordt in die volgorde het eerste type gebruikt dat je weerintegratie geeft.
+- Het antwoord is `{ type, points }`. `points` is een lijst van `[tijd in milliseconden, temperatuur, laagste temperatuur]`. De laagste temperatuur is er alleen bij `daily` en `twice_daily`, anders is die `null`.
+- Bij `hourly` krijg je de komende 24 uur, inclusief het uur waar je nu in zit. Bij `daily` en `twice_daily` krijg je alle dagen die de weerintegratie geeft.
+- Geeft de weerintegratie niets, dan komt de fout `no_forecast`.
+
+Een oudere versie van de integratie kent deze twee functies niet. Controleer daarom met `typeof DashboardBase.history === "function"` voordat je ze gebruikt.
+
 Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in het bestand zelf zitten (bijvoorbeeld als `data:`-adres). Een klein lettertype als `data:`-adres past ruim binnen de 2 MB.
 
 `localStorage`, `sessionStorage` en IndexedDB werken niet in het afgeschermde iframe. Bewaar dus geen voorkeuren (zoals een thema) in de pagina zelf, maar kies bij het laden een standaard.
@@ -95,6 +120,7 @@ Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in he
 - Een strikte beveiligingsregel (CSP) blokkeert verbindingen naar buiten, zodat een pagina geen standen kan wegsturen.
 - De lijst met toegestane entiteiten wordt in Home Assistant gecontroleerd, bij elke opdracht en per dashboard.
 - Het paneel stuurt bij elke opdracht het eigen dashboard mee. Een pagina in het iframe kan dat niet zelf kiezen, dus ze kan niet bij de lijst van een ander dashboard.
+- `history()` en `forecast()` lezen alleen, en alleen voor entiteiten in de lijst van dat dashboard. De antwoorden zijn klein: een beperkt aantal punten per lijn.
 - De pagina wordt via de beveiligde verbinding geladen, niet via een openbaar webadres.
 
 Wat dit niet dekt:
@@ -109,6 +135,8 @@ Wat dit niet dekt:
 - **Het dashboard toont een melding dat er nog geen HTML-bestand is:** upload een bestand via het tandwiel van dat dashboard, bij Upload HTML-dashboard.
 - **Het paneel toont een melding over `entry_id`:** je app of browser gebruikt nog een oud paneelbestand uit de cache. Sluit de Home Assistant-app helemaal en open hem opnieuw, of ververs de pagina. Met één dashboard werkt een oud paneelbestand ook zonder die stap. Met meer dan één dashboard niet.
 - **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren van dat dashboard. Bedienen kan alleen voor de domeinen die `info()` teruggeeft.
+- **Een grafiek blijft leeg:** de geschiedenis komt uit de recorder van Home Assistant. Staat de entiteit bij de uitzonderingen van de recorder, of is hij net nieuw, dan zijn er geen gegevens. Een oud paneelbestand uit de cache kent `history()` ook niet: sluit de app helemaal en open hem opnieuw.
+- **Geen weersverwachting:** niet elke weerintegratie geeft uren of dagen. Kijk in Ontwikkelaarstools, Acties, bij `weather.get_forecasts`, welke types jouw weerentiteit geeft.
 - **Ik kan geen dashboard meer toevoegen:** er zijn maximaal vijf. Verwijder er eerst een.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
@@ -123,6 +151,7 @@ Wat dit niet dekt:
 - Geen externe bronnen in de pagina.
 - Geen `localStorage`, `sessionStorage` of IndexedDB in de pagina.
 - Alleen services van de domeinen hierboven. Sloten, alarmen en dergelijke zitten er bewust niet bij.
+- Geschiedenis: maximaal 8 lijnen tegelijk, 168 uur terug en 144 punten per lijn. De verwachting komt alleen van weerentiteiten in de lijst.
 - Elk paneel is voor alle gebruikers zichtbaar, niet alleen voor beheerders. De lijst met toegestane entiteiten van een dashboard geldt voor iedereen die dat paneel opent.
 
 ## Verwijderen
@@ -133,10 +162,10 @@ Verwijder een dashboard via Instellingen, Apparaten en diensten, Dashboard Base,
 
 Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zelf hebben getoetst:
 
-- Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, het omzetten van een oudere instelling, de instelling en de opties, het uploaden, meerdere dashboards naast elkaar, en de koppeling met de regels voor toegestane entiteiten per dashboard.
+- Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, het omzetten van een oudere instelling, de instelling en de opties, het uploaden, meerdere dashboards naast elkaar, de koppeling met de regels voor toegestane entiteiten per dashboard, en het opvragen van geschiedenis en verwachting (met een nagebootste recorder en weerintegratie).
 - Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
 
-Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd, met één dashboard. De code is geschreven met hulp van een AI-hulpmiddel.
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
