@@ -1,6 +1,7 @@
 {
   "domain": "html_dashboard_base",
   "name": "Dashboard Base",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@TheGinji"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "panel_custom", "websocket_api", "file_upload"],

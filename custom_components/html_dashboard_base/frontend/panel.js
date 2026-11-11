@@ -13,6 +13,8 @@ parent.postMessage({dbase:1,id,op,args},"*")});
 window.DashboardBase=Object.freeze({
 registry:()=>req("registry"),states:()=>req("states"),info:()=>req("info"),
 call:(domain,service,data={})=>req("call",{domain,service,data}),
+history:(series,hours=24)=>req("history",{series,hours}),
+forecast:(entity_id,type)=>req("forecast",{entity_id,type}),
 subscribe(cb){subs.add(cb);return()=>subs.delete(cb)}});})();`;
 
 class DashboardBasePanel extends HTMLElement {
@@ -183,6 +185,23 @@ class DashboardBasePanel extends HTMLElement {
         domain: String(a.domain),
         service: String(a.service),
         data: a.data || {},
+      });
+    if (op === "history")
+      return c.sendMessagePromise({
+        type: "html_dashboard_base/history",
+        entry_id,
+        series: (Array.isArray(a.series) ? a.series : []).map((s) => ({
+          entity_id: String(s && s.entity_id),
+          ...(s && s.attribute ? { attribute: String(s.attribute) } : {}),
+        })),
+        hours: Math.round(Number(a.hours)) || 24,
+      });
+    if (op === "forecast")
+      return c.sendMessagePromise({
+        type: "html_dashboard_base/forecast",
+        entry_id,
+        entity_id: String(a.entity_id),
+        ...(a.type ? { forecast_type: String(a.type) } : {}),
       });
     return Promise.reject(new Error("Onbekende opdracht"));
   }

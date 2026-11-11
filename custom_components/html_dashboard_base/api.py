@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,7 @@ from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     area_registry as ar,
     config_validation as cv,
@@ -18,6 +21,7 @@ from homeassistant.helpers import (
     entity_registry as er,
 )
 from homeassistant.loader import async_get_integration
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ALLOWED_DOMAINS,
@@ -25,6 +29,13 @@ from .const import (
     CONF_TITLE,
     DEFAULT_TITLE,
     DOMAIN,
+)
+from .series import (
+    FORECAST_TYPES,
+    MAX_HOURS,
+    MAX_SERIES,
+    downsample,
+    forecast_points,
 )
 from .util import placeholder_html
 
@@ -78,6 +89,32 @@ def _snapshot(state: State) -> dict[str, Any]:
 
 def _read_html(path: Path) -> str | None:
     return path.read_text(encoding="utf-8") if path.is_file() else None
+
+
+async def _fetch_history(  # pragma: no cover
+    hass: HomeAssistant,
+    entity_ids: list[str],
+    start: datetime,
+    end: datetime,
+    no_attributes: bool,
+) -> dict[str, list[State]]:
+    """Standen uit de recorder. Een eigen functie, zodat tests hem kunnen vervangen."""
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder.history import get_significant_states
+
+    return await get_instance(hass).async_add_executor_job(
+        partial(
+            get_significant_states,
+            hass,
+            start,
+            end,
+            entity_ids=entity_ids,
+            include_start_time_state=True,
+            significant_changes_only=True,
+            minimal_response=False,
+            no_attributes=no_attributes,
+        )
+    )
 
 
 @websocket_api.websocket_command(
@@ -208,6 +245,102 @@ async def ws_info(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "html_dashboard_base/history",
+        vol.Optional("entry_id"): str,
+        vol.Required("series"): vol.All(
+            [{vol.Required("entity_id"): str, vol.Optional("attribute"): str}],
+            vol.Length(min=1, max=MAX_SERIES),
+        ),
+        vol.Optional("hours", default=24): vol.All(
+            int, vol.Range(min=1, max=MAX_HOURS)
+        ),
+    }
+)
+@websocket_api.async_response
+async def ws_history(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """De geschiedenis van toegestane entiteiten, uitgedund tot een rij punten. Leest alleen."""
+    series = msg["series"]
+    allowed = _allowed(hass, _entry_id(hass, msg))
+    if any(item["entity_id"] not in allowed for item in series):
+        connection.send_error(msg["id"], "not_allowed", "Niet toegestaan")
+        return
+    if "recorder" not in hass.config.components:
+        connection.send_error(
+            msg["id"], "no_recorder", "De geschiedenis is niet beschikbaar"
+        )
+        return
+    end = dt_util.utcnow()
+    start = end - timedelta(hours=msg["hours"])
+    states = await _fetch_history(
+        hass,
+        sorted({item["entity_id"] for item in series}),
+        start,
+        end,
+        not any("attribute" in item for item in series),
+    )
+    connection.send_result(
+        msg["id"],
+        [
+            {
+                "entity_id": item["entity_id"],
+                "attribute": item.get("attribute"),
+                "points": downsample(
+                    states.get(item["entity_id"], []), item.get("attribute"), start, end
+                ),
+            }
+            for item in series
+        ],
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/forecast",
+        vol.Optional("entry_id"): str,
+        vol.Required("entity_id"): str,
+        vol.Optional("forecast_type"): vol.In(FORECAST_TYPES),
+        vol.Optional("hours", default=24): vol.All(
+            int, vol.Range(min=1, max=MAX_HOURS)
+        ),
+    }
+)
+@websocket_api.async_response
+async def ws_forecast(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """De verwachting van een toegestane weerentiteit. Leest alleen."""
+    entity_id = msg["entity_id"]
+    allowed = _allowed(hass, _entry_id(hass, msg))
+    if entity_id not in allowed or entity_id.split(".", 1)[0] != "weather":
+        connection.send_error(msg["id"], "not_allowed", "Niet toegestaan")
+        return
+    types = (msg["forecast_type"],) if "forecast_type" in msg else FORECAST_TYPES
+    for forecast_type in types:
+        try:
+            response = await hass.services.async_call(
+                "weather",
+                "get_forecasts",
+                {"entity_id": entity_id, "type": forecast_type},
+                blocking=True,
+                return_response=True,
+                context=connection.context(msg),
+            )
+        except HomeAssistantError:
+            continue
+        items = ((response or {}).get(entity_id) or {}).get("forecast") or []
+        points = forecast_points(items, forecast_type, msg["hours"], dt_util.utcnow())
+        if points:
+            connection.send_result(
+                msg["id"], {"type": forecast_type, "points": points}
+            )
+            return
+    connection.send_error(msg["id"], "no_forecast", "Geen verwachting beschikbaar")
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "html_dashboard_base/call",
         vol.Optional("entry_id"): str,
         vol.Required("domain"): cv.string,
@@ -250,6 +383,8 @@ def async_register_api(hass: HomeAssistant) -> None:
         ws_subscribe,
         ws_get_html,
         ws_info,
+        ws_history,
+        ws_forecast,
         ws_call,
     ):
         websocket_api.async_register_command(hass, command)
