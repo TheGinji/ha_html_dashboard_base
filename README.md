@@ -12,7 +12,7 @@ Draai je eigen HTML-dashboards als panelen in de zijbalk van Home Assistant, met
 
 ## In het kort (English)
 
-Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities, and a page can hide the Home Assistant sidebar (kiosk mode) while its panel is open, for a wall-mounted tablet. Early version, so far only tried on a single installation. The documentation below is in Dutch.
+Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities. A page can also hide the Home Assistant sidebar (kiosk mode) while its panel is open, for a wall-mounted tablet, and keep small preferences per device. Early version, so far only tried on a single installation. The documentation below is in Dutch.
 
 ## Is dit voor jou?
 
@@ -31,7 +31,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 - Elk dashboard is een eigen instelling van de integratie, met een eigen naam, een eigen `.html`-bestand en een eigen lijst met toegestane entiteiten. Je kunt er maximaal vijf maken.
 - Elk dashboard krijgt een eigen paneel in de zijbalk. Het paneel toont het bestand in een afgeschermd iframe.
-- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen, services aan te roepen en de kioskmodus (zijbalk verbergen) aan of uit te zetten.
+- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen, services aan te roepen, de kioskmodus (zijbalk verbergen) aan of uit te zetten en kleine voorkeuren per apparaat te onthouden.
 - Alleen de entiteiten die je bij dat dashboard aanvinkt zijn zichtbaar en bedienbaar. Een dashboard kan niet bij de lijst van een ander dashboard. Die controle gebeurt in Home Assistant zelf, niet alleen in de pagina.
 
 ## Installatie
@@ -82,6 +82,10 @@ const verwachting = await DashboardBase.forecast("weather.voorbeeld");
 // Voor een tablet aan de muur (zie hieronder):
 const kiosk = await DashboardBase.kiosk();      // { on: false }
 await DashboardBase.kiosk(true);                // zijbalk van Home Assistant verbergen
+
+// Voorkeuren onthouden, per apparaat (zie hieronder):
+const voorkeuren = await DashboardBase.prefs();                // { }
+await DashboardBase.prefs({ thema: "donker", kamers: ["toilet"] });
 ```
 
 Elke functie werkt voor het dashboard waarin je pagina draait. Je geeft zelf geen dashboard door.
@@ -116,7 +120,7 @@ Een oudere versie van de integratie kent deze twee functies niet. Controleer daa
 
 Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in het bestand zelf zitten (bijvoorbeeld als `data:`-adres). Een klein lettertype als `data:`-adres past ruim binnen de 2 MB.
 
-`localStorage`, `sessionStorage` en IndexedDB werken niet in het afgeschermde iframe. Bewaar dus geen voorkeuren (zoals een thema) in de pagina zelf, maar kies bij het laden een standaard.
+`localStorage`, `sessionStorage` en IndexedDB werken niet in het afgeschermde iframe. Voorkeuren (zoals een thema) bewaar je daarom met `prefs()`, vanaf versie 0.5.0 (zie hieronder). Zonder `prefs()` kies je bij het laden een standaard.
 
 ### Kioskmodus
 
@@ -129,6 +133,17 @@ Vanaf versie 0.4.0. `kiosk()` verbergt de zijbalk en de menuknop van Home Assist
 - Kent je Home Assistant geen kioskmodus, dan geeft `kiosk(true)` na anderhalve seconde een foutmelding en wordt er niets onthouden. Een oudere versie van de integratie kent `kiosk` helemaal niet: controleer met `typeof DashboardBase.kiosk === "function"`.
 - Zit een dashboard vast in kioskmodus omdat het geen schakelaar heeft, zet dan `?dbase_kiosk=0` achter het adres van het dashboard. Dat wist de onthouden keuze op dat apparaat.
 
+### Voorkeuren onthouden
+
+Vanaf versie 0.5.0. Een pagina kan zelf niets onthouden, dus het paneel doet dat voor je: een klein object per dashboard en per apparaat, in de opslag van de browser.
+
+- `prefs()` geeft de bewaarde voorkeuren terug, bijvoorbeeld `{ thema: "donker" }`. Is er niets bewaard, dan is het `{}`.
+- `prefs({ sleutel: waarde })` voegt samen met wat er staat. Een waarde van `null` wist die sleutel. Het antwoord is het nieuwe object.
+- Alleen JSON-waarden: tekst, getallen, `true` en `false`, lijsten en objecten. Samen maximaal 8 kB. Is het te veel, dan komt een foutmelding en blijft alles zoals het was.
+- De voorkeuren gelden alleen op dit apparaat en voor dit dashboard. Een andere iPad of telefoon begint leeg.
+- Blokkeert de browser de opslag, dan werkt `prefs()` nog wel, maar blijft de keuze alleen staan zolang het paneel open is.
+- Een oudere versie van de integratie kent `prefs` niet: controleer met `typeof DashboardBase.prefs === "function"`.
+
 ## Veiligheid
 
 - De pagina draait in een iframe met `sandbox="allow-scripts"`. Zonder `allow-same-origin` kan ze je Home Assistant-login niet lezen.
@@ -137,6 +152,7 @@ Vanaf versie 0.4.0. `kiosk()` verbergt de zijbalk en de menuknop van Home Assist
 - Het paneel stuurt bij elke opdracht het eigen dashboard mee. Een pagina in het iframe kan dat niet zelf kiezen, dus ze kan niet bij de lijst van een ander dashboard.
 - `history()` en `forecast()` lezen alleen, en alleen voor entiteiten in de lijst van dat dashboard. De antwoorden zijn klein: een beperkt aantal punten per lijn.
 - `kiosk()` verbergt alleen de zijbalk van Home Assistant. Het geeft geen toegang tot gegevens of bediening, en werkt alleen terwijl het eigen paneel open is.
+- `prefs()` leest en schrijft alleen de voorkeuren van het eigen dashboard, onder een sleutel die het paneel kiest. De omvang is begrensd tot 8 kB, zodat een pagina de opslag van de browser niet kan vullen.
 - De pagina wordt via de beveiligde verbinding geladen, niet via een openbaar webadres.
 
 Wat dit niet dekt:
@@ -158,7 +174,8 @@ Wat dit niet dekt:
 - **Ik kan geen dashboard meer toevoegen:** er zijn maximaal vijf. Verwijder er eerst een.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
-- **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Kies bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
+- **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Bewaar de voorkeur met `prefs()` (vanaf versie 0.5.0). Kent je versie dat niet, kies dan bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
+- **Voorkeuren zijn op een ander apparaat weg:** ze worden per apparaat bewaard, niet gedeeld. Wis je de gegevens van de browser of de app, dan zijn ze ook weg.
 - **Na een update ziet het paneel er nog hetzelfde uit, of staan er oude teksten in het formulier:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand en de nieuwe vertalingen worden geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
@@ -167,9 +184,10 @@ Wat dit niet dekt:
 - Maximaal vijf dashboards, elk met een eigen paneel, bestand en lijst met entiteiten.
 - Elk bestand mag maximaal 2 MB zijn, in UTF-8, en moet uit één HTML-bestand bestaan.
 - Geen externe bronnen in de pagina.
-- Geen `localStorage`, `sessionStorage` of IndexedDB in de pagina.
+- Geen `localStorage`, `sessionStorage` of IndexedDB in de pagina. Gebruik `prefs()` voor voorkeuren.
 - Alleen services van de domeinen hierboven. Sloten, alarmen en dergelijke zitten er bewust niet bij.
 - Geschiedenis: maximaal 8 lijnen tegelijk, 168 uur terug en 144 punten per lijn. De verwachting komt alleen van weerentiteiten in de lijst.
+- Voorkeuren (`prefs()`): samen maximaal 8 kB per dashboard, alleen op het apparaat waar je ze zette.
 - Kioskmodus verbergt alleen de zijbalk van Home Assistant en wordt per apparaat onthouden, niet gedeeld tussen apparaten. Hij werkt niet op een Home Assistant zonder kioskmodus.
 - Elk paneel is voor alle gebruikers zichtbaar, niet alleen voor beheerders. De lijst met toegestane entiteiten van een dashboard geldt voor iedereen die dat paneel opent.
 
@@ -184,9 +202,9 @@ Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zel
 - Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, het omzetten van een oudere instelling, de instelling en de opties, het uploaden, meerdere dashboards naast elkaar, de koppeling met de regels voor toegestane entiteiten per dashboard, en het opvragen van geschiedenis en verwachting (met een nagebootste recorder en weerintegratie).
 - Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
 
-De kioskmodus is in een browser getoetst tegen een nagebouwde Home Assistant, met en zonder ondersteuning voor kioskmodus. Die toetsen zitten niet in de automatische tests.
+De kioskmodus en `prefs()` zijn in een browser getoetst tegen een nagebouwde Home Assistant. Voor de kioskmodus is dat met en zonder ondersteuning in Home Assistant, voor `prefs()` onder meer samenvoegen, wissen, de grens van 8 kB, een ander dashboard en geblokkeerde opslag. Die toetsen zitten niet in de automatische tests.
 
-Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De kioskmodus is daarop geprobeerd op een iPad (6e generatie, A1893) en werkt daar. Op andere apparaten is hij nog niet geprobeerd. De code is geschreven met hulp van een AI-hulpmiddel.
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De kioskmodus is daarop geprobeerd op een iPad (6e generatie, A1893) en werkt daar. Op andere apparaten is hij nog niet geprobeerd, en `prefs()` nog op geen enkele echte installatie. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
