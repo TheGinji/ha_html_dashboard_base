@@ -12,7 +12,7 @@ Draai je eigen HTML-dashboards als panelen in de zijbalk van Home Assistant, met
 
 ## In het kort (English)
 
-Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities. Early version, so far only tried on a single installation. The documentation below is in Dutch.
+Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities, and a page can hide the Home Assistant sidebar (kiosk mode) while its panel is open, for a wall-mounted tablet. Early version, so far only tried on a single installation. The documentation below is in Dutch.
 
 ## Is dit voor jou?
 
@@ -31,7 +31,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 - Elk dashboard is een eigen instelling van de integratie, met een eigen naam, een eigen `.html`-bestand en een eigen lijst met toegestane entiteiten. Je kunt er maximaal vijf maken.
 - Elk dashboard krijgt een eigen paneel in de zijbalk. Het paneel toont het bestand in een afgeschermd iframe.
-- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen en services aan te roepen.
+- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen, services aan te roepen en de kioskmodus (zijbalk verbergen) aan of uit te zetten.
 - Alleen de entiteiten die je bij dat dashboard aanvinkt zijn zichtbaar en bedienbaar. Een dashboard kan niet bij de lijst van een ander dashboard. Die controle gebeurt in Home Assistant zelf, niet alleen in de pagina.
 
 ## Installatie
@@ -78,6 +78,10 @@ await DashboardBase.call("light", "toggle", { entity_id: "light.voorbeeld" });
 // Voor grafieken (zie hieronder):
 const lijnen = await DashboardBase.history([{ entity_id: "sensor.voorbeeld" }], 24);
 const verwachting = await DashboardBase.forecast("weather.voorbeeld");
+
+// Voor een tablet aan de muur (zie hieronder):
+const kiosk = await DashboardBase.kiosk();      // { on: false }
+await DashboardBase.kiosk(true);                // zijbalk van Home Assistant verbergen
 ```
 
 Elke functie werkt voor het dashboard waarin je pagina draait. Je geeft zelf geen dashboard door.
@@ -114,6 +118,17 @@ Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in he
 
 `localStorage`, `sessionStorage` en IndexedDB werken niet in het afgeschermde iframe. Bewaar dus geen voorkeuren (zoals een thema) in de pagina zelf, maar kies bij het laden een standaard.
 
+### Kioskmodus
+
+Vanaf versie 0.4.0. `kiosk()` verbergt de zijbalk en de menuknop van Home Assistant zolang dit dashboard open is, handig voor een tablet aan de muur. Het is de kioskmodus die Home Assistant zelf kent, dus het dashboard krijgt het hele scherm.
+
+- `kiosk()` geeft de stand terug: `{ on: true }` of `{ on: false }`.
+- `kiosk(true)` en `kiosk(false)` zetten de modus aan of uit en geven de nieuwe stand terug.
+- De keuze wordt per apparaat en per dashboard onthouden en gaat weer aan als je het dashboard opent. Geef je dashboard daarom zelf een schakelaar om de modus uit te zetten.
+- Verlaat je het dashboard, of stopt het met een melding, dan komt de zijbalk automatisch terug. De onthouden keuze blijft staan.
+- Kent je Home Assistant geen kioskmodus, dan geeft `kiosk(true)` na anderhalve seconde een foutmelding en wordt er niets onthouden. Een oudere versie van de integratie kent `kiosk` helemaal niet: controleer met `typeof DashboardBase.kiosk === "function"`.
+- Zit een dashboard vast in kioskmodus omdat het geen schakelaar heeft, zet dan `?dbase_kiosk=0` achter het adres van het dashboard. Dat wist de onthouden keuze op dat apparaat.
+
 ## Veiligheid
 
 - De pagina draait in een iframe met `sandbox="allow-scripts"`. Zonder `allow-same-origin` kan ze je Home Assistant-login niet lezen.
@@ -121,6 +136,7 @@ Maak er één los bestand van: lettertypen, afbeeldingen en scripts moeten in he
 - De lijst met toegestane entiteiten wordt in Home Assistant gecontroleerd, bij elke opdracht en per dashboard.
 - Het paneel stuurt bij elke opdracht het eigen dashboard mee. Een pagina in het iframe kan dat niet zelf kiezen, dus ze kan niet bij de lijst van een ander dashboard.
 - `history()` en `forecast()` lezen alleen, en alleen voor entiteiten in de lijst van dat dashboard. De antwoorden zijn klein: een beperkt aantal punten per lijn.
+- `kiosk()` verbergt alleen de zijbalk van Home Assistant. Het geeft geen toegang tot gegevens of bediening, en werkt alleen terwijl het eigen paneel open is.
 - De pagina wordt via de beveiligde verbinding geladen, niet via een openbaar webadres.
 
 Wat dit niet dekt:
@@ -137,6 +153,8 @@ Wat dit niet dekt:
 - **Een entiteit ontbreekt of "Niet toegestaan":** voeg de entiteit toe via Configureren van dat dashboard. Bedienen kan alleen voor de domeinen die `info()` teruggeeft.
 - **Een grafiek blijft leeg:** de geschiedenis komt uit de recorder van Home Assistant. Staat de entiteit bij de uitzonderingen van de recorder, of is hij net nieuw, dan zijn er geen gegevens. Een oud paneelbestand uit de cache kent `history()` ook niet: sluit de app helemaal en open hem opnieuw.
 - **Geen weersverwachting:** niet elke weerintegratie geeft uren of dagen. Kijk in Ontwikkelaarstools, Acties, bij `weather.get_forecasts`, welke types jouw weerentiteit geeft.
+- **Kioskmodus lukt niet, of de schakelaar is grijs:** de schakelaar werkt pas met Dashboard Base 0.4.0 of nieuwer en een Home Assistant die kioskmodus kent. Sluit na een update de app helemaal en open hem opnieuw, of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
+- **Het dashboard zit vast in kioskmodus:** zet `?dbase_kiosk=0` achter het adres van het dashboard.
 - **Ik kan geen dashboard meer toevoegen:** er zijn maximaal vijf. Verwijder er eerst een.
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
@@ -152,6 +170,7 @@ Wat dit niet dekt:
 - Geen `localStorage`, `sessionStorage` of IndexedDB in de pagina.
 - Alleen services van de domeinen hierboven. Sloten, alarmen en dergelijke zitten er bewust niet bij.
 - Geschiedenis: maximaal 8 lijnen tegelijk, 168 uur terug en 144 punten per lijn. De verwachting komt alleen van weerentiteiten in de lijst.
+- Kioskmodus verbergt alleen de zijbalk van Home Assistant en wordt per apparaat onthouden, niet gedeeld tussen apparaten. Hij werkt niet op een Home Assistant zonder kioskmodus.
 - Elk paneel is voor alle gebruikers zichtbaar, niet alleen voor beheerders. De lijst met toegestane entiteiten van een dashboard geldt voor iedereen die dat paneel opent.
 
 ## Verwijderen
@@ -165,7 +184,9 @@ Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zel
 - Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, het omzetten van een oudere instelling, de instelling en de opties, het uploaden, meerdere dashboards naast elkaar, de koppeling met de regels voor toegestane entiteiten per dashboard, en het opvragen van geschiedenis en verwachting (met een nagebootste recorder en weerintegratie).
 - Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
 
-Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De code is geschreven met hulp van een AI-hulpmiddel.
+De kioskmodus is in een browser getoetst tegen een nagebouwde Home Assistant, met en zonder ondersteuning voor kioskmodus. Die toetsen zitten niet in de automatische tests.
+
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd, en de kioskmodus nog op geen enkele echte installatie. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
