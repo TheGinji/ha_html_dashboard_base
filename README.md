@@ -186,7 +186,7 @@ Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zel
 
 De kioskmodus is in een browser getoetst tegen een nagebouwde Home Assistant, met en zonder ondersteuning voor kioskmodus. Die toetsen zitten niet in de automatische tests.
 
-Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd, en de kioskmodus nog op geen enkele echte installatie. De code is geschreven met hulp van een AI-hulpmiddel.
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De kioskmodus is daarop geprobeerd op een iPad (6e generatie, A1893) en werkt daar. Op andere apparaten is hij nog niet geprobeerd. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 
