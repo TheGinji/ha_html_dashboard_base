@@ -10,6 +10,12 @@ const KIOSK_WAIT_MS = 1500;
 const KIOSK_UNSUPPORTED =
   "Deze versie van Home Assistant kent geen kioskmodus. Werk Home Assistant bij.";
 
+// Voorkeuren: een pagina in het afgeschermde iframe kan zelf niets onthouden. Het paneel bewaart
+// daarom een klein JSON-object per dashboard en per apparaat, in de opslag van de browser.
+const PREFS_MAX = 8000;
+const PREFS_TOO_BIG = "Te veel gegevens: voorkeuren mogen samen maximaal 8 kB zijn.";
+const PREFS_BAD = "prefs() verwacht een object, bijvoorbeeld { sleutel: waarde }.";
+
 const BRIDGE = `(()=>{const w=new Map(),subs=new Set();let n=0;
 addEventListener("message",e=>{if(e.source!==parent)return;const m=e.data;
 if(!m||m.dbase!==1)return;
@@ -24,6 +30,7 @@ call:(domain,service,data={})=>req("call",{domain,service,data}),
 history:(series,hours=24)=>req("history",{series,hours}),
 forecast:(entity_id,type)=>req("forecast",{entity_id,type}),
 kiosk:(on)=>req("kiosk",{on:on===undefined?null:!!on}),
+prefs:(patch)=>req("prefs",{patch:patch===undefined?null:patch}),
 subscribe(cb){subs.add(cb);return()=>subs.delete(cb)}});})();`;
 
 class DashboardBasePanel extends HTMLElement {
@@ -228,7 +235,48 @@ class DashboardBasePanel extends HTMLElement {
         ...(a.type ? { forecast_type: String(a.type) } : {}),
       });
     if (op === "kiosk") return this._kiosk(a.on);
+    if (op === "prefs") return this._prefs(a.patch);
     return Promise.reject(new Error("Onbekende opdracht"));
+  }
+
+  // prefs() geeft de bewaarde voorkeuren terug. prefs({ a: 1, b: null }) voegt samen met wat er
+  // staat: a wordt gezet, b wordt gewist. Het antwoord is het nieuwe object. Alleen JSON-waarden.
+  _prefs(patch) {
+    const key = `html_dashboard_base_prefs_${this._entryId}`;
+    let cur = this._prefsMem;
+    if (!cur) {
+      try {
+        const v = JSON.parse(localStorage.getItem(key) || "{}");
+        cur = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+      } catch (_) {
+        cur = {};
+      }
+    }
+    if (patch === null || patch === undefined) return Promise.resolve(cur);
+    if (typeof patch !== "object" || Array.isArray(patch))
+      return Promise.reject(new Error(PREFS_BAD));
+    const next = { ...cur };
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === "__proto__") continue;
+      if (v === null) delete next[k];
+      else next[k] = v;
+    }
+    let text;
+    try {
+      text = JSON.stringify(next);
+    } catch (_) {
+      return Promise.reject(new Error(PREFS_BAD));
+    }
+    if (text.length > PREFS_MAX) return Promise.reject(new Error(PREFS_TOO_BIG));
+    const clean = JSON.parse(text);
+    try {
+      localStorage.setItem(key, text);
+      this._prefsMem = null;
+    } catch (_) {
+      // Opslag geblokkeerd of vol: dan onthoudt het paneel het tot het paneel sluit.
+      this._prefsMem = clean;
+    }
+    return Promise.resolve(clean);
   }
 
   // kiosk() zonder argument geeft de stand, kiosk(true/false) zet de modus aan of uit.
