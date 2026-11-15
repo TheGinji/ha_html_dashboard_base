@@ -2,6 +2,14 @@ const CSP =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
   "img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'";
 
+// Kioskmodus: Home Assistant verbergt dan de zijbalk. Dat gaat met een event op window
+// (hass-kiosk-mode); Home Assistant zet het daarna in hass.kioskMode. Bij een oudere
+// Home Assistant luistert niemand naar het event en blijft hass.kioskMode leeg.
+const KIOSK_EVENT = "hass-kiosk-mode";
+const KIOSK_WAIT_MS = 1500;
+const KIOSK_UNSUPPORTED =
+  "Deze versie van Home Assistant kent geen kioskmodus. Werk Home Assistant bij.";
+
 const BRIDGE = `(()=>{const w=new Map(),subs=new Set();let n=0;
 addEventListener("message",e=>{if(e.source!==parent)return;const m=e.data;
 if(!m||m.dbase!==1)return;
@@ -15,6 +23,7 @@ registry:()=>req("registry"),states:()=>req("states"),info:()=>req("info"),
 call:(domain,service,data={})=>req("call",{domain,service,data}),
 history:(series,hours=24)=>req("history",{series,hours}),
 forecast:(entity_id,type)=>req("forecast",{entity_id,type}),
+kiosk:(on)=>req("kiosk",{on:on===undefined?null:!!on}),
 subscribe(cb){subs.add(cb);return()=>subs.delete(cb)}});})();`;
 
 class DashboardBasePanel extends HTMLElement {
@@ -40,10 +49,16 @@ class DashboardBasePanel extends HTMLElement {
     );
     this._onMessage = (e) => this._handle(e);
     this._onResize = () => this._fit();
+    this._narrow = false;
+    this._kioskWaiters = new Set();
+    this._kioskOwned = false;
+    this._kioskChain = Promise.resolve();
   }
 
   set hass(hass) {
     this._hass = hass;
+    this._kioskWaiters.forEach((w) => w.check());
+    this._showMenu();
     this._maybeStart();
   }
 
@@ -56,7 +71,14 @@ class DashboardBasePanel extends HTMLElement {
   }
 
   set narrow(value) {
-    this._menu.hidden = !value;
+    this._narrow = !!value;
+    this._showMenu();
+  }
+
+  // Het menuknopje is er alleen als Home Assistant zelf geen zijbalk toont (smal scherm).
+  // In kioskmodus is het verborgen: dan wil je een schoon scherm.
+  _showMenu() {
+    this._menu.hidden = !this._narrow || this._kioskOn();
   }
 
   connectedCallback() {
@@ -102,6 +124,7 @@ class DashboardBasePanel extends HTMLElement {
       this._unsub();
       this._unsub = null;
     }
+    this._kioskRelease();
   }
 
   _fail(err) {
@@ -115,6 +138,7 @@ class DashboardBasePanel extends HTMLElement {
 
   async _start() {
     const conn = this._hass.connection;
+    this._kioskRestore();
     const unsub = await conn.subscribeMessage(
       (payload) => this._post({ dbase: 1, event: true, payload }),
       { type: "html_dashboard_base/subscribe", entry_id: this._entryId }
@@ -203,7 +227,95 @@ class DashboardBasePanel extends HTMLElement {
         entity_id: String(a.entity_id),
         ...(a.type ? { forecast_type: String(a.type) } : {}),
       });
+    if (op === "kiosk") return this._kiosk(a.on);
     return Promise.reject(new Error("Onbekende opdracht"));
+  }
+
+  // kiosk() zonder argument geeft de stand, kiosk(true/false) zet de modus aan of uit.
+  // De keuze wordt per apparaat onthouden en komt terug als dit paneel weer opent.
+  // De opdrachten gaan een voor een, zodat snel aan en uit tikken netjes in volgorde loopt.
+  _kiosk(on) {
+    const run = async () => {
+      if (typeof on !== "boolean") return { on: this._kioskOn() };
+      await this._kioskSet(on);
+      this._kioskRemember(on);
+      return { on: this._kioskOn() };
+    };
+    const result = this._kioskChain.then(run);
+    this._kioskChain = result.catch(() => {});
+    return result;
+  }
+
+  _kioskOn() {
+    return this._hass?.kioskMode === true;
+  }
+
+  // Zet de modus en wacht tot Home Assistant dat bevestigt via hass.kioskMode.
+  _kioskSet(enable) {
+    if (this._kioskOn() === enable) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const waiter = {
+        check: () => {
+          if (this._kioskOn() === enable) finish();
+        },
+      };
+      const finish = (err) => {
+        clearTimeout(timer);
+        this._kioskWaiters.delete(waiter);
+        if (err) reject(err);
+        else resolve();
+      };
+      const timer = setTimeout(
+        () => finish(new Error(KIOSK_UNSUPPORTED)),
+        KIOSK_WAIT_MS
+      );
+      this._kioskWaiters.add(waiter);
+      // Alleen een modus die wij zelf aanzetten, zetten wij ook weer los.
+      this._kioskOwned = enable;
+      window.dispatchEvent(new CustomEvent(KIOSK_EVENT, { detail: { enable } }));
+    });
+  }
+
+  // Bij weggaan of een fout geven we de zijbalk terug, anders zit de gebruiker vast
+  // zonder menu. De voorkeur blijft staan; bij terugkomen gaat de modus weer aan.
+  _kioskRelease() {
+    if (!this._kioskOwned) return;
+    this._kioskOwned = false;
+    window.dispatchEvent(
+      new CustomEvent(KIOSK_EVENT, { detail: { enable: false } })
+    );
+  }
+
+  _kioskKey() {
+    return `html_dashboard_base_kiosk_${this._entryId}`;
+  }
+
+  _kioskRemember(on) {
+    try {
+      if (on) localStorage.setItem(this._kioskKey(), "1");
+      else localStorage.removeItem(this._kioskKey());
+    } catch (_) {
+      /* opslag geblokkeerd: de modus werkt, alleen niet na heropenen */
+    }
+  }
+
+  // Bij het openen: de onthouden voorkeur toepassen. ?dbase_kiosk=0 in het adres wist de
+  // voorkeur, voor als een dashboard geen schakelaar heeft om de modus uit te zetten.
+  _kioskRestore() {
+    let want = false;
+    try {
+      const reset = new URLSearchParams(location.search).get("dbase_kiosk") === "0";
+      if (reset) localStorage.removeItem(this._kioskKey());
+      want = !reset && localStorage.getItem(this._kioskKey()) === "1";
+    } catch (_) {
+      return;
+    }
+    // In dezelfde rij als de opdrachten van de pagina: vraagt de pagina meteen de stand
+    // op, dan krijgt ze het antwoord pas nadat de onthouden modus is toegepast.
+    if (want)
+      this._kioskChain = this._kioskChain
+        .then(() => this._kioskSet(true))
+        .catch(() => {});
   }
 
   _post(msg) {
