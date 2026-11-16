@@ -19,6 +19,7 @@ from .const import (
     CONF_ENTITIES,
     CONF_PANEL_URL,
     CONF_TITLE,
+    DATA_PREFS,
     DEFAULT_ICON,
     DEFAULT_TITLE,
     DOMAIN,
@@ -27,6 +28,7 @@ from .const import (
     PANEL_ELEMENT,
     STATIC_URL,
 )
+from .prefs import PrefsStore
 from .util import html_file
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -53,6 +55,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         ]
     )
+    prefs = PrefsStore(hass)
+    await prefs.async_load()
+    hass.data[DATA_PREFS] = prefs
     async_register_api(hass)
     return True
 
@@ -107,9 +112,12 @@ async def async_unload_entry(
 async def async_remove_entry(
     hass: HomeAssistant, entry: DashboardBaseConfigEntry
 ) -> None:
-    """Het geüploade bestand van dit dashboard opruimen bij verwijderen."""
+    """Het geüploade bestand en de gedeelde voorkeuren van dit dashboard opruimen bij verwijderen."""
     path = html_file(hass, entry.data.get(CONF_DASHBOARD_ID, LEGACY_DASHBOARD_ID))
     await hass.async_add_executor_job(path.unlink, True)
+    prefs = hass.data.get(DATA_PREFS)
+    if prefs is not None:
+        await prefs.async_remove(entry.entry_id)
 
 
 async def _async_reload(hass: HomeAssistant, entry: DashboardBaseConfigEntry) -> None:

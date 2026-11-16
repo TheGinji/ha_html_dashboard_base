@@ -12,7 +12,7 @@ Draai je eigen HTML-dashboards als panelen in de zijbalk van Home Assistant, met
 
 ## In het kort (English)
 
-Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities. A page can also hide the Home Assistant sidebar (kiosk mode) while its panel is open, for a wall-mounted tablet, and keep small preferences per device. Early version, so far only tried on a single installation. The documentation below is in Dutch.
+Dashboard Base adds sidebar panels to Home Assistant, each running a single HTML file you upload. You can add up to five dashboards, each with its own file and its own list of allowed entities. A page runs in a sandboxed iframe and talks to Home Assistant only through a small bridge (`window.DashboardBase`), limited to the entities selected for that dashboard. The bridge can also read history and weather forecasts for charts, read-only and only for allowed entities. A page can also hide the Home Assistant sidebar (kiosk mode) while its panel is open, for a wall-mounted tablet, and keep small preferences, per device or shared by all devices. Early version, so far only tried on a single installation. The documentation below is in Dutch.
 
 ## Is dit voor jou?
 
@@ -31,7 +31,7 @@ Hoe het zich verhoudt tot andere manieren (op basis van hun eigen beschrijving, 
 
 - Elk dashboard is een eigen instelling van de integratie, met een eigen naam, een eigen `.html`-bestand en een eigen lijst met toegestane entiteiten. Je kunt er maximaal vijf maken.
 - Elk dashboard krijgt een eigen paneel in de zijbalk. Het paneel toont het bestand in een afgeschermd iframe.
-- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen, services aan te roepen, de kioskmodus (zijbalk verbergen) aan of uit te zetten en kleine voorkeuren per apparaat te onthouden.
+- De pagina krijgt `window.DashboardBase` om standen te lezen, de geschiedenis en de weersverwachting op te vragen, services aan te roepen, de kioskmodus (zijbalk verbergen) aan of uit te zetten en kleine voorkeuren per apparaat of voor alle apparaten te onthouden.
 - Alleen de entiteiten die je bij dat dashboard aanvinkt zijn zichtbaar en bedienbaar. Een dashboard kan niet bij de lijst van een ander dashboard. Die controle gebeurt in Home Assistant zelf, niet alleen in de pagina.
 
 ## Installatie
@@ -86,6 +86,10 @@ await DashboardBase.kiosk(true);                // zijbalk van Home Assistant ve
 // Voorkeuren onthouden, per apparaat (zie hieronder):
 const voorkeuren = await DashboardBase.prefs();                // { }
 await DashboardBase.prefs({ thema: "donker", kamers: ["toilet"] });
+
+// Keuzes die op elk apparaat moeten gelden (zie hieronder):
+const gedeeld = await DashboardBase.sharedPrefs();             // { }
+await DashboardBase.sharedPrefs({ "lamp:light.gang": "hal" });
 ```
 
 Elke functie werkt voor het dashboard waarin je pagina draait. Je geeft zelf geen dashboard door.
@@ -144,6 +148,18 @@ Vanaf versie 0.5.0. Een pagina kan zelf niets onthouden, dus het paneel doet dat
 - Blokkeert de browser de opslag, dan werkt `prefs()` nog wel, maar blijft de keuze alleen staan zolang het paneel open is.
 - Een oudere versie van de integratie kent `prefs` niet: controleer met `typeof DashboardBase.prefs === "function"`.
 
+### Keuzes delen tussen apparaten
+
+Vanaf versie 0.6.0. `prefs()` geldt alleen op het apparaat waar je het zet. Wil je dat een keuze op elke tablet, telefoon en laptop geldt (bijvoorbeeld welke lamp bij welke kamer hoort), gebruik dan `sharedPrefs()`. Dat werkt precies als `prefs()`, maar Home Assistant bewaart het object zelf.
+
+- `sharedPrefs()` geeft het gedeelde object terug, `{}` als er niets is.
+- `sharedPrefs({ sleutel: waarde })` voegt samen met wat er staat. Een waarde van `null` wist die sleutel. Het antwoord is het nieuwe object.
+- Het samenvoegen gebeurt in Home Assistant, per sleutel. Zetten twee apparaten tegelijk een andere sleutel, dan blijven beide staan. Zetten ze dezelfde sleutel, dan wint de laatste. Zet daarom liever veel kleine sleutels (`"lamp:light.gang"`) dan één groot object dat elk apparaat helemaal overschrijft.
+- Alleen JSON-waarden, samen maximaal 8 kB per dashboard. Is het te veel, dan komt de fout `too_big` en blijft alles zoals het was.
+- Een ander apparaat ziet een wijziging pas als het opnieuw leest. Er komt geen melding: lees bijvoorbeeld weer bij het openen en een keer per minuut zolang het scherm openstaat.
+- De gedeelde keuzes staan in de opslag van Home Assistant (`.storage`) en blijven bij een herstart. Verwijder je het dashboard, dan verdwijnen ze ook.
+- Een oudere versie van de integratie kent `sharedPrefs` niet: controleer met `typeof DashboardBase.sharedPrefs === "function"` en val terug op `prefs()`.
+
 ## Veiligheid
 
 - De pagina draait in een iframe met `sandbox="allow-scripts"`. Zonder `allow-same-origin` kan ze je Home Assistant-login niet lezen.
@@ -153,6 +169,7 @@ Vanaf versie 0.5.0. Een pagina kan zelf niets onthouden, dus het paneel doet dat
 - `history()` en `forecast()` lezen alleen, en alleen voor entiteiten in de lijst van dat dashboard. De antwoorden zijn klein: een beperkt aantal punten per lijn.
 - `kiosk()` verbergt alleen de zijbalk van Home Assistant. Het geeft geen toegang tot gegevens of bediening, en werkt alleen terwijl het eigen paneel open is.
 - `prefs()` leest en schrijft alleen de voorkeuren van het eigen dashboard, onder een sleutel die het paneel kiest. De omvang is begrensd tot 8 kB, zodat een pagina de opslag van de browser niet kan vullen.
+- `sharedPrefs()` leest en schrijft alleen de gedeelde voorkeuren van het eigen dashboard. Het paneel stuurt het eigen dashboard mee, dus een pagina kan niet bij die van een ander dashboard. De omvang is begrensd tot 8 kB per dashboard. Iedereen die het paneel opent kan ze lezen en wijzigen, net als de lijst met entiteiten.
 - De pagina wordt via de beveiligde verbinding geladen, niet via een openbaar webadres.
 
 Wat dit niet dekt:
@@ -175,7 +192,8 @@ Wat dit niet dekt:
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
 - **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Bewaar de voorkeur met `prefs()` (vanaf versie 0.5.0). Kent je versie dat niet, kies dan bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
-- **Voorkeuren zijn op een ander apparaat weg:** ze worden per apparaat bewaard, niet gedeeld. Wis je de gegevens van de browser of de app, dan zijn ze ook weg.
+- **Voorkeuren zijn op een ander apparaat weg:** `prefs()` bewaart per apparaat. Wis je de gegevens van de browser of de app, dan zijn ze ook weg. Wat op elk apparaat moet gelden, bewaar je met `sharedPrefs()` (vanaf versie 0.6.0).
+- **`sharedPrefs` bestaat niet of geeft een fout:** werk de integratie bij naar 0.6.0, herstart Home Assistant en sluit de app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
 - **Na een update ziet het paneel er nog hetzelfde uit, of staan er oude teksten in het formulier:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand en de nieuwe vertalingen worden geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
@@ -188,6 +206,7 @@ Wat dit niet dekt:
 - Alleen services van de domeinen hierboven. Sloten, alarmen en dergelijke zitten er bewust niet bij.
 - Geschiedenis: maximaal 8 lijnen tegelijk, 168 uur terug en 144 punten per lijn. De verwachting komt alleen van weerentiteiten in de lijst.
 - Voorkeuren (`prefs()`): samen maximaal 8 kB per dashboard, alleen op het apparaat waar je ze zette.
+- Gedeelde voorkeuren (`sharedPrefs()`): samen maximaal 8 kB per dashboard, voor alle apparaten. Een ander apparaat ziet een wijziging pas als het zelf opnieuw leest.
 - Kioskmodus verbergt alleen de zijbalk van Home Assistant en wordt per apparaat onthouden, niet gedeeld tussen apparaten. Hij werkt niet op een Home Assistant zonder kioskmodus.
 - Elk paneel is voor alle gebruikers zichtbaar, niet alleen voor beheerders. De lijst met toegestane entiteiten van een dashboard geldt voor iedereen die dat paneel opent.
 
@@ -202,9 +221,9 @@ Aangepaste integraties hebben geen officiële kwaliteitsscore. Dit is wat we zel
 - Bij elke wijziging draaien automatische tests (pytest) met minstens 95% dekking. Ze controleren onder meer het laden en verwijderen, het omzetten van een oudere instelling, de instelling en de opties, het uploaden, meerdere dashboards naast elkaar, de koppeling met de regels voor toegestane entiteiten per dashboard, en het opvragen van geschiedenis en verwachting (met een nagebootste recorder en weerintegratie).
 - Bij elke wijziging en elke week draaien de validatie van Home Assistant (Hassfest) en die van HACS.
 
-De kioskmodus en `prefs()` zijn in een browser getoetst tegen een nagebouwde Home Assistant. Voor de kioskmodus is dat met en zonder ondersteuning in Home Assistant, voor `prefs()` onder meer samenvoegen, wissen, de grens van 8 kB, een ander dashboard en geblokkeerde opslag. Die toetsen zitten niet in de automatische tests.
+De kioskmodus, `prefs()` en `sharedPrefs()` zijn in een browser getoetst tegen een nagebouwde Home Assistant. Voor de kioskmodus is dat met en zonder ondersteuning in Home Assistant, voor `prefs()` onder meer samenvoegen, wissen, de grens van 8 kB, een ander dashboard en geblokkeerde opslag. Voor `sharedPrefs()` met twee nagebootste apparaten die dezelfde opslag delen: een wijziging op het ene apparaat verschijnt op het andere, tegelijk wijzigen overschrijft elkaar niet, een andere dashboard deelt niets, en een mislukte of te grote wijziging geeft een duidelijke melding. Die toetsen zitten niet in de automatische tests. De automatische tests (pytest) bevatten wel tests voor het samenvoegen, bewaren en verwijderen van gedeelde voorkeuren en voor de opdracht zelf.
 
-Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De kioskmodus is daarop geprobeerd op een iPad (6e generatie, A1893) en werkt daar. Op andere apparaten is hij nog niet geprobeerd, en `prefs()` nog op geen enkele echte installatie. De code is geschreven met hulp van een AI-hulpmiddel.
+Wat we nog niet breed hebben getoetst: andere installaties en schermformaten. Het paneel is tot nu toe op één installatie geprobeerd. De kioskmodus is daarop geprobeerd op een iPad (6e generatie, A1893) en werkt daar. Op andere apparaten is hij nog niet geprobeerd, en `prefs()` en `sharedPrefs()` nog op geen enkele echte installatie. De code is geschreven met hulp van een AI-hulpmiddel.
 
 ## Steun
 

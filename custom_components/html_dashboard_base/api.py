@@ -27,9 +27,11 @@ from .const import (
     ALLOWED_DOMAINS,
     BLOCKED_TARGET_KEYS,
     CONF_TITLE,
+    DATA_PREFS,
     DEFAULT_TITLE,
     DOMAIN,
 )
+from .prefs import PrefsTooBig
 from .series import (
     FORECAST_TYPES,
     MAX_HOURS,
@@ -375,6 +377,37 @@ async def ws_call(
     connection.send_result(msg["id"])
 
 
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "html_dashboard_base/shared_prefs",
+        vol.Optional("entry_id"): str,
+        vol.Optional("patch"): vol.Any(None, dict),
+    }
+)
+@websocket_api.async_response
+async def ws_shared_prefs(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """De gedeelde voorkeuren van dit dashboard lezen, of eerst een wijziging samenvoegen."""
+    entry = _entry(hass, _entry_id(hass, msg))
+    if entry is None:
+        connection.send_error(msg["id"], "not_loaded", "Dashboard Base is niet geladen")
+        return
+    prefs = hass.data[DATA_PREFS]
+    patch = msg.get("patch")
+    if patch is not None:
+        try:
+            await prefs.async_update(entry.entry_id, patch)
+        except PrefsTooBig:
+            connection.send_error(
+                msg["id"],
+                "too_big",
+                "Te veel gegevens: voorkeuren mogen samen maximaal 8 kB zijn.",
+            )
+            return
+    connection.send_result(msg["id"], prefs.get(entry.entry_id))
+
+
 def async_register_api(hass: HomeAssistant) -> None:
     """Alle opdrachten registreren."""
     for command in (
@@ -386,5 +419,6 @@ def async_register_api(hass: HomeAssistant) -> None:
         ws_history,
         ws_forecast,
         ws_call,
+        ws_shared_prefs,
     ):
         websocket_api.async_register_command(hass, command)
