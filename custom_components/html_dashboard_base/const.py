@@ -26,6 +26,12 @@ STATIC_URL = "/html_dashboard_base_static"
 DATA_DIR = "html_dashboard_base"
 MAX_HTML_BYTES = 2_000_000
 
+# Gedeelde voorkeuren (sharedPrefs): één klein JSON-object per dashboard, in .storage van Home Assistant.
+PREFS_STORE_KEY = f"{DOMAIN}.prefs"
+PREFS_STORE_VERSION = 1
+MAX_PREFS_CHARS = 8000
+DATA_PREFS = f"{DOMAIN}_prefs"
+
 ALLOWED_DOMAINS = frozenset(
     {
         "button", "climate", "cover", "fan", "humidifier", "input_boolean",
