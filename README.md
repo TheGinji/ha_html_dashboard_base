@@ -150,7 +150,7 @@ Vanaf versie 0.5.0. Een pagina kan zelf niets onthouden, dus het paneel doet dat
 
 ### Keuzes delen tussen apparaten
 
-Vanaf versie 0.6.0. `prefs()` geldt alleen op het apparaat waar je het zet. Wil je dat een keuze op elke tablet, telefoon en laptop geldt (bijvoorbeeld welke lamp bij welke kamer hoort), gebruik dan `sharedPrefs()`. Dat werkt precies als `prefs()`, maar Home Assistant bewaart het object zelf.
+Vanaf versie 0.6.1. `prefs()` geldt alleen op het apparaat waar je het zet. Wil je dat een keuze op elke tablet, telefoon en laptop geldt (bijvoorbeeld welke lamp bij welke kamer hoort), gebruik dan `sharedPrefs()`. Dat werkt precies als `prefs()`, maar Home Assistant bewaart het object zelf.
 
 - `sharedPrefs()` geeft het gedeelde object terug, `{}` als er niets is.
 - `sharedPrefs({ sleutel: waarde })` voegt samen met wat er staat. Een waarde van `null` wist die sleutel. Het antwoord is het nieuwe object.
@@ -192,8 +192,8 @@ Wat dit niet dekt:
 - **Melding dat het dashboard is weggenavigeerd:** haal `location.reload()`, `location.href` en links naar andere pagina's uit je bestand.
 - **Lettertypen, afbeeldingen of scripts laden niet:** externe bronnen worden geblokkeerd. Zet ze in het bestand zelf.
 - **Een voorkeur in je pagina (zoals het thema) is na verversen weg:** `localStorage` werkt niet in het afgeschermde iframe. Bewaar de voorkeur met `prefs()` (vanaf versie 0.5.0). Kent je versie dat niet, kies dan bij het laden een standaard, bijvoorbeeld op basis van het tijdstip.
-- **Voorkeuren zijn op een ander apparaat weg:** `prefs()` bewaart per apparaat. Wis je de gegevens van de browser of de app, dan zijn ze ook weg. Wat op elk apparaat moet gelden, bewaar je met `sharedPrefs()` (vanaf versie 0.6.0).
-- **`sharedPrefs` bestaat niet of geeft een fout:** werk de integratie bij naar 0.6.0, herstart Home Assistant en sluit de app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
+- **Voorkeuren zijn op een ander apparaat weg:** `prefs()` bewaart per apparaat. Wis je de gegevens van de browser of de app, dan zijn ze ook weg. Wat op elk apparaat moet gelden, bewaar je met `sharedPrefs()` (vanaf versie 0.6.1).
+- **`sharedPrefs` bestaat niet of geeft een fout:** werk de integratie bij naar 0.6.1, herstart Home Assistant en sluit de app helemaal of ververs de pagina, zodat het nieuwe paneelbestand wordt geladen.
 - **Na een update ziet het paneel er nog hetzelfde uit, of staan er oude teksten in het formulier:** herstart Home Assistant en sluit de Home Assistant-app helemaal of ververs de pagina, zodat het nieuwe paneelbestand en de nieuwe vertalingen worden geladen.
 - **Iets anders:** kijk in het logboek van Home Assistant en maak een Issue aan, zonder persoonlijke gegevens.
 
